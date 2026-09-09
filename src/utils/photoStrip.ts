@@ -45,6 +45,19 @@ export const STRIP_BACKGROUNDS: Record<string, string> = {
   NEUTRAL: '#efebe9',
   DARK: '#263238',
   SOFT_PINK: '#f8bbd0',
+  LAVENDER: '#ede7f6',
+  MINT: '#e0f2f1',
+  SAND: '#f5e6d3',
+  TERRACOTTA: '#e67d65',
+  OLIVE: '#556b2f',
+  BURGUNDY: '#6a1b3a',
+  CHARCOAL: '#36454f',
+  PEARL: '#f0f0e8',
+  MUSTARD: '#e6c900',
+  DUSTY_ROSE: '#d4a5a5',
+  FOREST: '#2e4b3a',
+  CORAL: '#ff7f6b',
+  SLATE: '#708090',
 };
 
 export const STRIP_BORDERS: Record<string, string> = {
@@ -56,6 +69,28 @@ export const STRIP_BORDERS: Record<string, string> = {
   ROUNDED: '8px solid #202125',
   RUST: '3px solid #95422e',
   PINK: '3px solid #f48fb1',
+  INSET: '4px inset #8d8d8d',
+  GROOVE: '4px groove #95422e',
+  RIDGE: '4px ridge #202125',
+  DOTTED: '3px dotted #5d5b56',
+  GOLD: '3px solid #d4af37',
+  VINTAGE: '6px solid #d7ccc8',
+  FILM_PERF: '2px solid #333',
+  BRUSHED: '3px solid #b8a88a',
+  ELEGANT: '2px solid #202125',
+  FRAMED: '5px solid #5d4037',
+  NEON: '2px solid #e91e63',
+};
+
+export const STRIP_TEXTURES: Record<string, { label: string; overlay: string; opacity: number }> = {
+  NONE: { label: 'None', overlay: '', opacity: 0 },
+  PAPER: { label: 'Paper', overlay: 'paper', opacity: 0.15 },
+  LINEN: { label: 'Linen', overlay: 'linen', opacity: 0.12 },
+  GRAIN: { label: 'Grain', overlay: 'grain', opacity: 0.2 },
+  VINTAGE: { label: 'Vintage', overlay: 'vintage', opacity: 0.25 },
+  DOTS: { label: 'Dots', overlay: 'dots', opacity: 0.1 },
+  NOISE: { label: 'Noise', overlay: 'noise', opacity: 0.15 },
+  WASHED: { label: 'Washed', overlay: 'washed', opacity: 0.18 },
 };
 
 export const TEXT_COLORS: Record<string, string> = {
@@ -66,6 +101,8 @@ export const TEXT_COLORS: Record<string, string> = {
   PINK: '#e91e63',
   NAVY: '#1a237e',
   BROWN: '#5d4037',
+  GOLD: '#d4af37',
+  SAGE: '#66bb6a',
 };
 
 export const ACCENT_COLORS: Record<string, string> = {
@@ -76,6 +113,8 @@ export const ACCENT_COLORS: Record<string, string> = {
   NAVY: '#1a237e',
   SAGE: '#66bb6a',
   RED: '#c62828',
+  CORAL: '#ff7f6b',
+  LAVENDER: '#9c7bb5',
 };
 
 export type StripSticker = {
@@ -84,6 +123,8 @@ export type StripSticker = {
   y: number;
   size: number;
 };
+
+export type StripOrientation = 'portrait' | 'landscape';
 
 export type StripCustomization = {
   template: string;
@@ -100,6 +141,8 @@ export type StripCustomization = {
   stickers: StripSticker[];
   filterKey: string;
   layout: string;
+  orientation: StripOrientation;
+  texture: string;
 };
 
 export const DEFAULT_CUSTOMIZATION: StripCustomization = {
@@ -117,6 +160,8 @@ export const DEFAULT_CUSTOMIZATION: StripCustomization = {
   stickers: [],
   filterKey: 'ORIGINAL',
   layout: 'vertical',
+  orientation: 'portrait',
+  texture: 'NONE',
 };
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -135,6 +180,76 @@ function getLayoutPhotos(photos: string[], layout: string, maxSlots: number): st
   return p;
 }
 
+// Draw texture overlays on the strip
+function drawTexture(ctx: CanvasRenderingContext2D, texture: string, w: number, h: number, opacity: number) {
+  if (!texture || texture === 'NONE' || opacity <= 0) return;
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+
+  if (texture === 'PAPER' || texture === 'GRAIN' || texture === 'NOISE') {
+    // Random noise/grain pattern
+    const imgData = ctx.createImageData(w, h);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = Math.random() * 40 - 20;
+      d[i] = n > 0 ? n : 0;
+      d[i + 1] = n > 0 ? n : 0;
+      d[i + 2] = n > 0 ? n : 0;
+      d[i + 3] = Math.abs(n) * 2;
+    }
+    // Use a temp canvas to draw the noise
+    const tmp = document.createElement('canvas');
+    tmp.width = w;
+    tmp.height = h;
+    const tctx = tmp.getContext('2d');
+    if (tctx) {
+      tctx.putImageData(imgData, 0, 0);
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(tmp, 0, 0);
+    }
+  } else if (texture === 'LINEN') {
+    // Cross-hatch linen pattern
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 4) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = 0; y < h; y += 4) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+  } else if (texture === 'VINTAGE' || texture === 'WASHED') {
+    // Vintage warm overlay with vignette
+    const grad = ctx.createRadialGradient(w / 2, h / 2, w * 0.2, w / 2, h / 2, w * 0.7);
+    grad.addColorStop(0, 'rgba(180,140,80,0)');
+    grad.addColorStop(1, 'rgba(120,80,40,0.5)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  } else if (texture === 'DOTS') {
+    // Dot pattern
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    const spacing = 8;
+    for (let y = 0; y < h; y += spacing) {
+      for (let x = 0; x < w; x += spacing) {
+        ctx.beginPath();
+        ctx.arc(x, y, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
 export async function generatePhotoStrip(
   photos: string[],
   customization: StripCustomization,
@@ -150,8 +265,12 @@ export async function generatePhotoStrip(
   const isPolaroid = layout === 'polaroid';
   const isSingle = layout === 'single';
   const isGrid = layout === 'grid2x2';
+  const isLandscape = customization.orientation === 'landscape';
 
-  const STRIP_WIDTH = isCouple ? 680 : (isSingle ? 520 : 440);
+  // Base dimensions differ by orientation
+  const PORTRAIT_WIDTH = isCouple ? 680 : (isSingle ? 520 : 440);
+  const LANDSCAPE_WIDTH = isSingle ? 720 : (isGrid ? 720 : 680);
+  const STRIP_WIDTH = isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH;
   const PAD = isPolaroid ? 28 : 22;
   const POLAROID_BOTTOM = isPolaroid ? 60 : 0;
   const GAP = 8;
@@ -159,20 +278,24 @@ export async function generatePhotoStrip(
   const innerWidth = STRIP_WIDTH - PAD * 2;
   const bg = STRIP_BACKGROUNDS[customization.background] || '#fafaf7';
   const filterCss = TEMPLATE_FILTERS[customization.template] || 'none';
-  const captureFilterCss = customization.filterKey !== 'ORIGINAL'
-    ? (TEMPLATE_FILTERS[customization.template] ? 'none' : 'none')
-    : 'none';
+
+  // Photo aspect ratio changes with orientation
+  // Portrait: 3:4 (taller), Landscape: 4:3 (wider)
+  const photoAspect = isLandscape ? 4 / 3 : 3 / 4;
 
   let positions: { x: number; y: number; w: number; h: number; img: HTMLImageElement }[];
   let totalHeight: number;
 
   if (isSingle) {
-    const photoHeight = Math.round(innerWidth * 1.25);
+    // Single hero frame - aspect ratio depends on orientation
+    const photoHeight = isLandscape
+      ? Math.round(innerWidth * 0.6)
+      : Math.round(innerWidth * 1.25);
     positions = [{ x: PAD, y: PAD, w: innerWidth, h: photoHeight, img: imgs[0] }];
     totalHeight = PAD + photoHeight + FOOTER + PAD;
   } else if (isGrid && imgs.length >= 4) {
     const cellW = (innerWidth - GAP) / 2;
-    const cellH = Math.round(cellW * 0.75);
+    const cellH = isLandscape ? Math.round(cellW * 0.65) : Math.round(cellW * 0.75);
     positions = imgs.slice(0, 4).map((img, i) => ({
       x: PAD + (i % 2) * (cellW + GAP),
       y: PAD + Math.floor(i / 2) * (cellH + GAP),
@@ -183,7 +306,7 @@ export async function generatePhotoStrip(
     totalHeight = PAD + 2 * cellH + GAP + FOOTER + PAD;
   } else if (isCouple) {
     const halfW = (innerWidth - GAP) / 2;
-    const cellH = Math.round(halfW * 0.75);
+    const cellH = isLandscape ? Math.round(halfW * 0.65) : Math.round(halfW * 0.75);
     positions = [];
     for (let i = 0; i < imgs.length; i++) {
       const col = i % 2;
@@ -193,7 +316,9 @@ export async function generatePhotoStrip(
     const rows = Math.ceil(imgs.length / 2);
     totalHeight = PAD + rows * cellH + (rows - 1) * GAP + FOOTER + PAD;
   } else if (isPolaroid) {
-    const photoHeight = Math.round(innerWidth * 0.8);
+    const photoHeight = isLandscape
+      ? Math.round(innerWidth * 0.6)
+      : Math.round(innerWidth * 0.8);
     positions = imgs.map((img, i) => ({
       x: PAD,
       y: PAD + i * (photoHeight + POLAROID_BOTTOM + GAP),
@@ -203,7 +328,10 @@ export async function generatePhotoStrip(
     }));
     totalHeight = PAD + imgs.length * (photoHeight + POLAROID_BOTTOM) + (imgs.length - 1) * GAP + FOOTER + PAD;
   } else {
-    const photoHeight = Math.round(innerWidth * 0.75);
+    // Vertical strip - in landscape mode, photos are wider/shorter
+    const photoHeight = isLandscape
+      ? Math.round(innerWidth * 0.6)
+      : Math.round(innerWidth * 0.75);
     positions = imgs.map((img, i) => ({
       x: PAD,
       y: PAD + i * (photoHeight + GAP),
@@ -220,15 +348,18 @@ export async function generatePhotoStrip(
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
 
+  // Fill background
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, STRIP_WIDTH, totalHeight);
 
+  // Draw photos with filter
   ctx.filter = filterCss;
   for (const pos of positions) {
     const img = pos.img;
     const imgRatio = img.width / img.height;
     const targetRatio = pos.w / pos.h;
     let sx = 0, sy = 0, sw = img.width, sh = img.height;
+    // Cover crop - center the image
     if (imgRatio > targetRatio) {
       sw = img.height * targetRatio;
       sx = (img.width - sw) / 2;
@@ -237,6 +368,8 @@ export async function generatePhotoStrip(
       sy = (img.height - sh) / 2;
     }
     ctx.drawImage(img, sx, sy, sw, sh, pos.x, pos.y, pos.w, pos.h);
+
+    // Polaroid bottom gap
     if (isPolaroid) {
       ctx.fillStyle = bg;
       const bottomY = pos.y + pos.h;
@@ -245,6 +378,7 @@ export async function generatePhotoStrip(
   }
   ctx.filter = 'none';
 
+  // Template-specific color overlays
   if (customization.template === '35MM FILM') {
     ctx.globalCompositeOperation = 'multiply';
     ctx.fillStyle = 'rgba(210,180,120,0.2)';
@@ -257,7 +391,14 @@ export async function generatePhotoStrip(
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  const isDarkBg = ['BLACK', 'NAVY', 'DARK', 'BROWN', 'RED'].includes(customization.background);
+  // Draw texture overlay
+  const texDef = STRIP_TEXTURES[customization.texture];
+  if (texDef && texDef.opacity > 0) {
+    drawTexture(ctx, customization.texture, STRIP_WIDTH, totalHeight, texDef.opacity);
+  }
+
+  // Text rendering
+  const isDarkBg = ['BLACK', 'NAVY', 'DARK', 'BROWN', 'RED', 'BURGUNDY', 'OLIVE', 'CHARCOAL', 'FOREST', 'SLATE'].includes(customization.background);
   const autoColor = isDarkBg ? '#ffffff' : '#202125';
   const textColor = customization.textColor === 'AUTO' ? autoColor : (TEXT_COLORS[customization.textColor] || autoColor);
   const accent = ACCENT_COLORS[customization.accentColor] || '';
@@ -308,6 +449,7 @@ export async function generatePhotoStrip(
     lineY += 14;
   }
 
+  // Stickers
   if (customization.stickers.length > 0) {
     ctx.font = '24px serif';
     ctx.textAlign = 'left';

@@ -11,8 +11,8 @@ import { useSessionRecorder } from '@/hooks/useSessionRecorder';
 import { COLOR_FILTERS, getFilterCss, getFilterLabel } from '@/hooks/useFilters';
 import {
   TEMPLATE_KEYS, TEMPLATE_LAYOUTS, STRIP_BACKGROUNDS, STRIP_BORDERS,
-  TEXT_COLORS, ACCENT_COLORS, DEFAULT_CUSTOMIZATION,
-  downloadDataUrl,
+  STRIP_TEXTURES, TEXT_COLORS, ACCENT_COLORS, DEFAULT_CUSTOMIZATION,
+  downloadDataUrl, StripOrientation,
 } from '@/utils/photoStrip';
 
 type View = 'home' | 'about' | 'gallery' | 'modes' | 'preview' | 'session' | 'select' | 'edit' | 'result'
@@ -832,7 +832,7 @@ function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environ
 
 function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (message: string) => void }) {
   const pb = usePhotobooth();
-  const [editTab, setEditTab] = useState<'TEMPLATE' | 'BACKGROUND' | 'BORDER' | 'TEXT' | 'STICKERS'>('TEMPLATE');
+  const [editTab, setEditTab] = useState<'TEMPLATE' | 'BACKGROUND' | 'BORDER' | 'TEXT' | 'STICKERS' | 'ORIENTATION'>('TEMPLATE');
   const templates = pb.mode === 'DOUBLE' ? COUPLE_TEMPLATES : SOLO_TEMPLATES;
   const bgKeys = Object.keys(STRIP_BACKGROUNDS);
   const borderKeys = Object.keys(STRIP_BORDERS);
@@ -870,7 +870,7 @@ function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (m
       <aside>
         <Eyebrow text="CUSTOMIZE" />
         <div className="edit-tabs">
-          {(['TEMPLATE', 'BACKGROUND', 'BORDER', 'TEXT', 'STICKERS'] as const).map(t => <button key={t} className={editTab === t ? 'selected' : ''} onClick={() => setEditTab(t)}>{t}</button>)}
+          {(['TEMPLATE', 'ORIENTATION', 'BACKGROUND', 'BORDER', 'TEXT', 'STICKERS'] as const).map(t => <button key={t} className={editTab === t ? 'selected' : ''} onClick={() => setEditTab(t)}>{t}</button>)}
         </div>
 
         {editTab === 'TEMPLATE' && <div className="edit-section">
@@ -884,13 +884,38 @@ function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (m
         </div>}
 
         {editTab === 'BACKGROUND' && <div className="edit-section">
+          <p className="edit-hint">Choose a background color for your strip. Dark backgrounds work well with light text.</p>
           <div className="color-grid">
             {bgKeys.map(bg => <button key={bg} className={pb.customization.background === bg ? 'color-swatch selected' : 'color-swatch'} onClick={() => updateCustom({ background: bg })} style={{ background: STRIP_BACKGROUNDS[bg] }}><small>{bg.replace('_', ' ')}</small></button>)}
+          </div>
+          <div className="edit-subsection">
+            <small className="edit-sub-label">TEXTURE OVERLAY</small>
+            <div className="texture-grid">
+              {Object.keys(STRIP_TEXTURES).map(tex => {
+                const def = STRIP_TEXTURES[tex];
+                return (
+                  <button key={tex} className={pb.customization.texture === tex ? 'texture-item selected' : 'texture-item'} onClick={() => updateCustom({ texture: tex })}>
+                    <span className="texture-preview" data-tex={def.overlay} />
+                    <small>{def.label}</small>
+                    {pb.customization.texture === tex && <Check size={12} />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>}
 
         {editTab === 'BORDER' && <div className="edit-section">
-          {borderKeys.map(bd => <button key={bd} className={pb.customization.border === bd ? 'template selected' : 'template'} onClick={() => updateCustom({ border: bd })}>{bd.replace('_', ' ')}{pb.customization.border === bd && <Check size={15} />}</button>)}
+          <p className="edit-hint">Choose a border style for your photo strip.</p>
+          <div className="border-list">
+            {borderKeys.map(bd => (
+              <button key={bd} className={pb.customization.border === bd ? 'border-item selected' : 'border-item'} onClick={() => updateCustom({ border: bd })}>
+                <span className="border-preview" style={{ border: STRIP_BORDERS[bd] !== 'none' ? STRIP_BORDERS[bd] : '1px solid #eee' }} />
+                <span>{bd.replace('_', ' ')}</span>
+                {pb.customization.border === bd && <Check size={14} />}
+              </button>
+            ))}
+          </div>
           <div className="edit-subsection">
             <small className="edit-sub-label">TEXT COLOR</small>
             <div className="color-grid small">
@@ -911,6 +936,23 @@ function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (m
           <label>LOCATION<small>City or cities</small><input value={pb.customization.locationText} onChange={e => updateCustom({ locationText: e.target.value })} placeholder={pb.mode === 'DOUBLE' ? 'MANILA \u00d7 TOKYO' : 'YOUR CITY'} maxLength={40} /></label>
           <label>DATE<small>Date text</small><input value={pb.customization.dateText} onChange={e => updateCustom({ dateText: e.target.value })} placeholder={new Date().toLocaleDateString('en-US')} maxLength={20} /></label>
           <label>MESSAGE<small>A short caption</small><input value={pb.customization.messageText} onChange={e => updateCustom({ messageText: e.target.value })} placeholder={pb.mode === 'DOUBLE' ? 'same booth, different places.' : 'a moment to remember'} maxLength={60} /></label>
+        </div>}
+
+        {editTab === 'ORIENTATION' && <div className="edit-section">
+          <p className="edit-hint">Choose your strip orientation. Portrait is the classic vertical photobooth strip. Landscape gives a wider, more cinematic layout.</p>
+          <div className="orientation-choice">
+            {(['portrait', 'landscape'] as StripOrientation[]).map(o => (
+              <button key={o} className={pb.customization.orientation === o ? 'orientation-card selected' : 'orientation-card'} onClick={() => updateCustom({ orientation: o })}>
+                <div className={o === 'portrait' ? 'orientation-visual portrait' : 'orientation-visual landscape'}>
+                  <span />
+                  <span />
+                </div>
+                <strong>{o === 'portrait' ? 'PORTRAIT' : 'LANDSCAPE'}</strong>
+                <small>{o === 'portrait' ? 'Classic vertical strip' : 'Wide cinematic layout'}</small>
+                {pb.customization.orientation === o && <Check size={16} />}
+              </button>
+            ))}
+          </div>
         </div>}
 
         {editTab === 'STICKERS' && <div className="edit-section">
