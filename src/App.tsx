@@ -1045,7 +1045,6 @@ function Result({ navigate, favorited, setFavorited, notify }: { navigate: (view
     <div className="result-grid">
       <div className="final-strip">
         <Script text="absolutely stunning!" />
-        <h3>PHOTO STRIP</h3>
         <img src={stripImage} alt="Finished photo strip" />
         <small>{pb.customization.titleText || 'FLASHBACK STUDIO'}<br />{pb.customization.namesText && <>{pb.customization.namesText}<br /></>}{pb.customization.locationText}<br />{pb.customization.dateText || new Date().toLocaleDateString('en-US')}</small>
         <div className="result-item-actions">
