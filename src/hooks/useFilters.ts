@@ -1,3 +1,4 @@
+import { applyFilmGrain } from '@/utils/canvasFilter';
 export type FilterDef = {
   key: string;
   label: string;
@@ -7,7 +8,7 @@ export type FilterDef = {
 export const COLOR_FILTERS: FilterDef[] = [
   { key: 'ORIGINAL', label: 'Original', css: 'none' },
   { key: 'WARM', label: 'Warm', css: 'sepia(0.25) saturate(1.3) brightness(1.05)' },
-  { key: 'COOL', label: 'Cool', css: 'hue-rotate(180deg) saturate(1.2) brightness(0.98)' },
+  { key: 'COOL', label: 'Cool', css: 'hue-rotate(-12deg) saturate(0.92) brightness(1.02)' },
   { key: 'SOFT', label: 'Soft', css: 'blur(0.4px) brightness(1.08) saturate(0.9) contrast(0.92)' },
   { key: 'NATURAL', label: 'Natural', css: 'saturate(1.08) contrast(1.03) brightness(1.02)' },
   { key: 'FILM', label: 'Film', css: 'contrast(1.2) saturate(0.85) brightness(0.95) sepia(0.15)' },
@@ -38,3 +39,5 @@ export function getFilterCss(key: string): string {
 export function getFilterLabel(key: string): string {
   return FILTER_MAP[key]?.label || 'Original';
 }
+
+export function getFilterOverlay(key: string) { return key === 'GRAIN' ? applyFilmGrain : undefined; }

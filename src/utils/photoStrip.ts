@@ -1,10 +1,12 @@
+import { FRAME_PRESETS, drawFrameDecoration } from './frames';
+import { drawFilteredImage } from './canvasFilter';
 export const TEMPLATE_FILTERS: Record<string, string> = {
-  CLASSIC: 'grayscale(1) contrast(1.1)',
-  MINIMAL: 'grayscale(0.3) contrast(1.05)',
+  CLASSIC: 'none',
+  MINIMAL: 'none',
   FILM: 'contrast(1.2) saturate(0.85) brightness(0.95) sepia(0.15)',
   '35MM FILM': 'sepia(0.4) contrast(1.1) brightness(1.05)',
   'VINTAGE 70S': 'sepia(0.6) saturate(1.4) contrast(0.95)',
-  'DATE STAMP': 'grayscale(0.8) contrast(1.05)',
+  'DATE STAMP': 'none',
   POLAROID: 'contrast(0.95) brightness(1.1) saturate(0.85) sepia(0.12)',
   RETRO: 'sepia(0.5) saturate(1.6) contrast(0.9) brightness(1.05) hue-rotate(-15deg)',
   EDITORIAL: 'contrast(1.15) saturate(0.9) brightness(1.0)',
@@ -19,7 +21,7 @@ export const TEMPLATE_LAYOUTS: Record<string, { layout: string; slots: number; l
   FILM: { layout: 'vertical', slots: 4, label: 'Film', desc: '4-frame film look' },
   '35MM FILM': { layout: 'vertical', slots: 4, label: '35mm Film', desc: 'Warm faded film grain' },
   'VINTAGE 70S': { layout: 'vertical', slots: 4, label: 'Vintage 70s', desc: 'Retro warm tones' },
-  'DATE STAMP': { layout: 'vertical', slots: 4, label: 'Date Stamp', desc: 'B&W with date stamp' },
+  'DATE STAMP': { layout: 'vertical', slots: 4, label: 'Date Stamp', desc: 'Your photos with a date stamp' },
   POLAROID: { layout: 'polaroid', slots: 3, label: 'Polaroid', desc: '3-frame polaroid style' },
   RETRO: { layout: 'vertical', slots: 6, label: 'Retro', desc: '6-frame retro strip' },
   EDITORIAL: { layout: 'single', slots: 1, label: 'Editorial', desc: 'Single hero frame' },
@@ -128,6 +130,8 @@ export type StripOrientation = 'portrait' | 'landscape';
 
 export type StripCustomization = {
   template: string;
+  frameId?: string;
+  room?: string;
   background: string;
   border: string;
   textColor: string;
@@ -147,6 +151,8 @@ export type StripCustomization = {
 
 export const DEFAULT_CUSTOMIZATION: StripCustomization = {
   template: 'CLASSIC',
+  frameId: '',
+  room: 'classic',
   background: 'CREAM',
   border: 'NONE',
   textColor: 'AUTO',
@@ -273,10 +279,11 @@ export async function generatePhotoStrip(
   const STRIP_WIDTH = isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH;
   const PAD = isPolaroid ? 28 : 22;
   const POLAROID_BOTTOM = isPolaroid ? 60 : 0;
-  const GAP = 8;
+  const GAP = customization.template === 'MINIMAL' ? 18 : 8;
   const FOOTER = 112;
   const innerWidth = STRIP_WIDTH - PAD * 2;
-  const bg = STRIP_BACKGROUNDS[customization.background] || '#fafaf7';
+  const frame = FRAME_PRESETS.find(frame => frame.id === customization.frameId);
+  const bg = frame?.color || STRIP_BACKGROUNDS[customization.background] || '#fafaf7';
   const filterCss = TEMPLATE_FILTERS[customization.template] || 'none';
 
   // Photo aspect ratio changes with orientation
@@ -339,9 +346,9 @@ export async function generatePhotoStrip(
   // Fill background
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, STRIP_WIDTH, totalHeight);
+  drawFrameDecoration(ctx, customization.frameId, STRIP_WIDTH, totalHeight, PAD);
 
   // Draw photos with filter
-  ctx.filter = filterCss;
   for (const pos of positions) {
     const img = pos.img;
     const imgRatio = img.width / img.height;
@@ -355,7 +362,7 @@ export async function generatePhotoStrip(
       sh = img.width / targetRatio;
       sy = (img.height - sh) / 2;
     }
-    ctx.drawImage(img, sx, sy, sw, sh, pos.x, pos.y, pos.w, pos.h);
+    drawFilteredImage(ctx, img, filterCss, sx, sy, sw, sh, pos.x, pos.y, pos.w, pos.h);
 
     // Polaroid bottom gap
     if (isPolaroid) {
@@ -364,7 +371,6 @@ export async function generatePhotoStrip(
       ctx.fillRect(pos.x, bottomY, pos.w, POLAROID_BOTTOM);
     }
   }
-  ctx.filter = 'none';
 
   // Template-specific color overlays
   if (customization.template === '35MM FILM') {
@@ -379,6 +385,8 @@ export async function generatePhotoStrip(
     ctx.globalCompositeOperation = 'source-over';
   }
 
+  if (customization.template === '35MM FILM') drawTexture(ctx, 'GRAIN', STRIP_WIDTH, totalHeight, 0.35);
+
   // Draw texture overlay
   const texDef = STRIP_TEXTURES[customization.texture];
   if (texDef && texDef.opacity > 0) {
@@ -387,7 +395,7 @@ export async function generatePhotoStrip(
 
   // Text rendering
   const isDarkBg = ['BLACK', 'NAVY', 'DARK', 'BROWN', 'RED', 'BURGUNDY', 'OLIVE', 'CHARCOAL', 'FOREST', 'SLATE'].includes(customization.background);
-  const autoColor = isDarkBg ? '#ffffff' : '#202125';
+  const autoColor = frame?.ink || (isDarkBg ? '#ffffff' : '#202125');
   const textColor = customization.textColor === 'AUTO' ? autoColor : (TEXT_COLORS[customization.textColor] || autoColor);
   const accent = ACCENT_COLORS[customization.accentColor] || '';
 
@@ -436,6 +444,8 @@ export async function generatePhotoStrip(
     ctx.fillText(customization.messageText, STRIP_WIDTH / 2, lineY, innerWidth);
     lineY += 14;
   }
+
+  if (frame?.mark) { ctx.fillStyle = textColor; ctx.font = 'bold 10px monospace'; ctx.fillText(frame.mark, STRIP_WIDTH / 2, totalHeight - 18, innerWidth); }
 
   // Stickers
   if (customization.stickers.length > 0) {

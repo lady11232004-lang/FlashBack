@@ -1,3 +1,4 @@
+import { drawFilteredImage } from '@/utils/canvasFilter';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export function useCamera() {
@@ -103,8 +104,7 @@ export function useCamera() {
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
       }
-      ctx.filter = filterCss || 'none';
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      drawFilteredImage(ctx, video, filterCss, 0, 0, video.videoWidth, video.videoHeight, 0, 0, canvas.width, canvas.height);
       ctx.restore();
 
       if (overlayFn) {

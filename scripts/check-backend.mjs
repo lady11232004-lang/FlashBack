@@ -13,12 +13,14 @@ let sessionId;
 const check = result => { assert.equal(result.error, null, result.error?.message); return result.data; };
 try {
   for (const participant of [host, partner, stranger]) check(await participant.auth.signInAnonymously());
-  const row = check(await host.from('couple_sessions').insert({ host_label: 'Backend verification', total_shots: 3, countdown_seconds: 3 }).select().single());
+  const row = check(await host.from('couple_sessions').insert({ host_label: 'Backend verification', total_shots: 3, countdown_seconds: 3, room_key: 'vintage' }).select().single());
   sessionId = row.id;
   assert.equal(check(await stranger.from('couple_sessions').select('*').eq('id', row.id)).length, 0, 'Nonparticipants must not read a session');
   assert.equal(check(await partner.from('couple_sessions').select('*').eq('id', row.id)).length, 0, 'An invite alone must not grant read access');
   const joined = check(await partner.rpc('join_couple_session', { session_id: row.id, label: 'Partner' }));
   assert.ok(joined.partner_user_id);
+  assert.equal(joined.room_key, 'vintage');
+  assert.ok((await partner.from('couple_sessions').update({ room_key: 'karaoke' }).eq('id', row.id)).error, 'Shared room must not change after creation');
   assert.ok((await stranger.rpc('join_couple_session', { session_id: row.id, label: 'Third participant' })).error, 'An invite must admit only one partner');
   assert.ok((await partner.from('couple_sessions').update({ host_ready: true }).eq('id', row.id)).error, 'Partner must not change host fields');
   assert.ok((await partner.rpc('start_couple_capture', { session_id: row.id })).error, 'Partner must not control capture');

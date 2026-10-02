@@ -94,6 +94,7 @@ test('device gallery does not appear in another browser identity', async ({ brow
 });
 
 test('navigation, invites and backend-unavailable state are honest', async ({ page }) => {
+  test.skip(Boolean(process.env.FLASHBACK_BACKEND_TEST), 'Backend is enabled in this run.');
   await page.goto('/?join=791127e7-366f-4331-ab61-a03522ee5101');
   await expect(page.getByRole('heading', { name: /JOIN YOUR/ })).toBeVisible();
   await page.getByPlaceholder('Your name / your city').fill('Partner');

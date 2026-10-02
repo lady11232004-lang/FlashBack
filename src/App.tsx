@@ -1,3 +1,6 @@
+import { FramePicker, RoomPicker } from '@/components/StudioPickers';
+import { ROOMS } from '@/utils/frames';
+import { drawFilteredImage } from '@/utils/canvasFilter';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Camera, Check, Copy, Download, Heart,
@@ -10,14 +13,14 @@ import { type GalleryItem } from '@/lib/gallery';
 import { usePhotobooth } from '@/context/PhotoboothContext';
 import { useCoupleSync } from '@/hooks/useCoupleSync';
 import { useSessionRecorder } from '@/hooks/useSessionRecorder';
-import { COLOR_FILTERS, getFilterCss, getFilterLabel } from '@/hooks/useFilters';
+import { COLOR_FILTERS, getFilterCss, getFilterLabel, getFilterOverlay } from '@/hooks/useFilters';
 import {
   TEMPLATE_KEYS, TEMPLATE_LAYOUTS, STRIP_BACKGROUNDS, STRIP_BORDERS,
   STRIP_TEXTURES, TEXT_COLORS, ACCENT_COLORS, DEFAULT_CUSTOMIZATION,
   downloadDataUrl, StripOrientation,
 } from '@/utils/photoStrip';
 
-type View = 'home' | 'about' | 'gallery' | 'modes' | 'preview' | 'session' | 'select' | 'edit' | 'result'
+type View = 'rooms' | 'home' | 'about' | 'gallery' | 'modes' | 'preview' | 'session' | 'select' | 'edit' | 'result'
   | 'couple-create' | 'couple-waiting' | 'couple-join' | 'couple-session' | 'privacy' | 'terms';
 type GalleryTab = 'MY PHOTOS' | 'MY STRIPS' | 'MY VIDEOS' | 'TEMPLATES';
 
@@ -34,7 +37,7 @@ const STICKER_OPTIONS = ['\u2665', '\u2605', '\u2728', '\u2729', '\u2606', '\u26
 const SOLO_TEMPLATES = ['CLASSIC', 'MINIMAL', 'FILM', '35MM FILM', 'VINTAGE 70S', 'DATE STAMP', 'POLAROID', 'RETRO', 'EDITORIAL', 'CLEAN MODERN', 'KODAK'];
 const COUPLE_TEMPLATES = ['COUPLE', 'CLASSIC', 'FILM', '35MM FILM', 'POLAROID', 'KODAK'];
 
-const VIEWS: View[] = ['home', 'about', 'gallery', 'modes', 'preview', 'session', 'select', 'edit', 'result', 'couple-create', 'couple-waiting', 'couple-join', 'couple-session', 'privacy', 'terms'];
+const VIEWS: View[] = ['rooms', 'home', 'about', 'gallery', 'modes', 'preview', 'session', 'select', 'edit', 'result', 'couple-create', 'couple-waiting', 'couple-join', 'couple-session', 'privacy', 'terms'];
 function routeView(): View {
   if (new URLSearchParams(location.search).has('join')) return 'couple-join';
   const requested = location.hash.slice(1) as View;
@@ -91,6 +94,7 @@ function App() {
       {view === 'about' && <About navigate={navigate} />}
       {view === 'gallery' && <Gallery navigate={navigate} notify={notify} />}
       {view === 'modes' && <Modes navigate={navigate} />}
+      {view === 'rooms' && <Rooms navigate={navigate} />}
       {view === 'preview' && <Preview navigate={navigate} notify={notify} />}
       {view === 'session' && <Session navigate={navigate} notify={notify} />}
       {view === 'select' && <Select navigate={navigate} notify={notify} />}
@@ -125,7 +129,7 @@ function Home({ navigate }: { navigate: (view: View) => void }) {
       <div className="hero-copy"><Eyebrow text="EST. 2026 — VIRTUAL STUDIO" /><h1>MAKE A MEMORY,<br /><span>wherever</span><br />YOU ARE.</h1><p>High-end, editorial-quality photography experiences delivered through your browser. Live color filters, nostalgic templates, and customizable photo strips.</p><div className="button-row"><button className="button dark" onClick={() => navigate('modes')}>TAKE A PHOTO <ArrowRight size={17} /></button><button className="button light" onClick={() => navigate('gallery')}>VIEW GALLERY</button></div></div>
       <div className="hero-image"><span className="image-note">the moment is yours</span></div>
     </section>
-    <section className="modes-intro section-pad"><Script text="Choose Your Perspective" /><h2>SELECT YOUR CAPTURE MODE</h2><div className="mode-grid"><ModeCard icon={<User />} title="SOLO MODE" text="Individual portrait sessions designed for profile aesthetics and personal archives. Professional filters applied in real-time." action="LAUNCH SESSION" onClick={() => navigate('preview')} /><ModeCard icon={<Heart />} title="LONG-DISTANCE" text="Sync with your partner across the globe for a shared session. Composite frames that bring you together." action="START TOGETHER" onClick={() => navigate('couple-create')} /><ModeCard icon={<Users />} title="YOUR ARCHIVE" text="Keep photos, strips, and session videos on this device. Download your favorites to share or back them up." action="OPEN GALLERY" onClick={() => navigate('gallery')} /></div></section>
+    <section className="modes-intro section-pad"><Script text="Choose Your Perspective" /><h2>SELECT YOUR CAPTURE MODE</h2><div className="mode-grid"><ModeCard icon={<User />} title="SOLO MODE" text="Individual portrait sessions designed for profile aesthetics and personal archives. Professional filters applied in real-time." action="LAUNCH SESSION" onClick={() => navigate('rooms')} /><ModeCard icon={<Heart />} title="LONG-DISTANCE" text="Sync with your partner across the globe for a shared session. Composite frames that bring you together." action="START TOGETHER" onClick={() => navigate('couple-create')} /><ModeCard icon={<Users />} title="YOUR ARCHIVE" text="Keep photos, strips, and session videos on this device. Download your favorites to share or back them up." action="OPEN GALLERY" onClick={() => navigate('gallery')} /></div></section>
     <section className="dark-cta"><h2>READY TO<br />CAPTURE<br />YOUR<br />NEXT ICONIC<br />MOMENT?</h2><button className="button light" onClick={() => navigate('preview')}>ENTER THE BOOTH</button><div className="stats"><b>19<small>COLOR FILTERS</small></b><b>12<small>TEMPLATES</small></b><b>10<small>SHOTS PER SESSION</small></b></div></section>
   </main>;
 }
@@ -264,6 +268,11 @@ function SideToolsPanel({ filterKey, onPickFilter, template, onPickTemplate, tem
   </div>;
 }
 
+function Rooms({ navigate }: { navigate: (view: View) => void }) {
+  const pb = usePhotobooth();
+  return <main className="section-pad room-page"><Eyebrow text="YOUR PHOTOBOOTH" /><h1>PICK YOUR ROOM.</h1><p>Set the mood with themed booth surroundings and a matching frame. Your camera background stays as it is.</p><RoomPicker value={pb.customization.room || 'classic'} onChange={room => { const preset=ROOMS.find(item=>item.id===room)!;pb.setCustomization({room,frameId:preset.frame}); }} /><button className="button dark" onClick={()=>navigate('preview')}>NEXT — CHECK CAMERA <ArrowRight size={16}/></button></main>;
+}
+
 /* ============ CAMERA VIEW ============ */
 
 function CameraView({ filterKey, videoRef, facingMode, flash, countdown, error, ready, onRetry }: {
@@ -273,6 +282,7 @@ function CameraView({ filterKey, videoRef, facingMode, flash, countdown, error, 
   const filterCss = getFilterCss(filterKey);
   return <div className="camera-feed-container">
     <video ref={videoRef} autoPlay playsInline muted className={`camera-feed ${facingMode === 'user' ? 'mirror' : ''}`} style={{ filter: filterCss }} />
+    {filterKey === 'GRAIN' && <div className="grain-overlay" aria-hidden="true" />}
     {flash && <div className="capture-flash" />}
     {countdown > 0 && <div className="countdown-overlay">{countdown}</div>}
     {error && <div className="camera-error"><Camera size={32} /><p>{error}</p><button className="button dark" onClick={onRetry}>RETRY</button></div>}
@@ -304,6 +314,7 @@ function Preview({ navigate, notify }: { navigate: (view: View) => void; notify:
         <span>LENS<strong>{pb.facingMode === 'user' ? 'FRONT' : 'REAR'}</strong></span>
         <span>LOC<strong>VIRTUAL</strong></span>
       </div>
+      <button className="back-link" onClick={() => navigate('rooms')}>ROOM: {ROOMS.find(room => room.id === pb.customization.room)?.label || 'Classic'} · CHANGE</button>
       <Script text="how many final photos?" />
       <div className="shot-selector">
         {SHOT_OPTIONS.map(n => <button key={n} className={pb.totalShots === n ? 'selected' : ''} onClick={() => pb.setTotalShots(n)}>{n}</button>)}
@@ -313,7 +324,7 @@ function Preview({ navigate, notify }: { navigate: (view: View) => void; notify:
         {COUNTDOWN_OPTIONS.map(n => <button key={n} className={pb.countdownDuration === n ? 'selected' : ''} onClick={() => pb.setCountdownDuration(n)}>{n}s</button>)}
       </div>
     </div>
-    <div className="camera-preview">
+    <div className="camera-preview" data-room={pb.customization.room || 'classic'}>
       <CameraView filterKey={pb.filterKey} videoRef={pb.videoRef} facingMode={pb.facingMode} flash={pb.flash} countdown={pb.countdown} error={pb.error} ready={pb.ready} onRetry={() => pb.startCamera()} />
       <div className="live-badge"><span /> LIVE FEED</div>
       <div className="camera-controls">
@@ -394,7 +405,7 @@ function Session({ navigate, notify }: { navigate: (view: View) => void; notify:
       </button>
       {hasMinShots && !sessionFull && <button className="button light session-btn-skip" onClick={handleFinish} disabled={pb.isCapturing || finishing}><Check size={15} /> DONE — SELECT PHOTOS</button>}
       {sessionFull && <button className="button dark session-btn" onClick={handleFinish} disabled={pb.isCapturing || finishing}>SELECT BEST PHOTOS <ArrowRight size={16} /></button>}
-    </aside><div className="session-camera">
+    </aside><div className="session-camera" data-room={pb.customization.room || 'classic'}>
       <div className="camera-feed-container session-feed">
         <CameraView filterKey={pb.filterKey} videoRef={pb.videoRef} facingMode={pb.facingMode} flash={pb.flash} countdown={pb.countdown} error={pb.error} ready={pb.ready} onRetry={() => pb.startCamera()} />
       </div>
@@ -459,6 +470,7 @@ function CoupleCreate({ navigate, notify, onCreated }: { navigate: (view: View) 
   const [label, setLabel] = useState('');
   const [shotCount, setShotCount] = useState(4);
   const [countdownSec, setCountdownSec] = useState(3);
+  const [roomKey, setRoomKey] = useState('classic');
   const [creating, setCreating] = useState(false);
 
   const handleCreate = async () => {
@@ -470,8 +482,8 @@ function CoupleCreate({ navigate, notify, onCreated }: { navigate: (view: View) 
       pb.setTotalShots(shotCount);
       pb.setCountdownDuration(countdownSec);
       pb.resetSession();
-      pb.setCustomization({ template: 'COUPLE' });
-      const id = await sync.createSession(label.trim(), shotCount, countdownSec);
+      pb.setCustomization({ template: 'COUPLE', room: roomKey, frameId: ROOMS.find(room => room.id === roomKey)?.frame });
+      const id = await sync.createSession(label.trim(), shotCount, countdownSec, roomKey);
       notify('Session created! Share the link with your partner.');
       onCreated(id);
     } catch {
@@ -491,13 +503,14 @@ function CoupleCreate({ navigate, notify, onCreated }: { navigate: (view: View) 
       <label>YOUR NAME &amp; CITY<small>e.g. "MIA / MANILA"</small>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Your name / your city" required maxLength={40} />
       </label>
-      <label>NUMBER OF FINAL PHOTOS
+      <fieldset><legend>NUMBER OF FINAL PHOTOS</legend>
         <div className="shot-selector">{SHOT_OPTIONS.map(n => <button type="button" key={n} className={shotCount === n ? 'selected' : ''} onClick={() => setShotCount(n)}>{n}</button>)}</div>
-      </label>
-      <label>COUNTDOWN DURATION
+      </fieldset>
+      <fieldset><legend>COUNTDOWN DURATION</legend>
         <div className="shot-selector">{COUNTDOWN_OPTIONS.map(n => <button type="button" key={n} className={countdownSec === n ? 'selected' : ''} onClick={() => setCountdownSec(n)}>{n}s</button>)}</div>
-      </label>
+      </fieldset>
     </form>
+    <h2 className="room-heading">CHOOSE YOUR ROOM</h2><RoomPicker value={roomKey} onChange={setRoomKey} />
     <button form="create-couple" type="submit" className="button dark" disabled={creating || !backendConfigured}>
       {creating ? <><Loader2 className="spin" size={16} /> CREATING...</> : <>CREATE SESSION <ArrowRight size={16} /></>}
     </button>
@@ -584,7 +597,7 @@ function CoupleJoin({ notify, onJoined }: { navigate: (view: View) => void; noti
       pb.setMode('DOUBLE');
       pb.resetSession();
       const s = await sync.joinSession(joinId, label.trim());
-      if (s) { pb.setTotalShots(s.total_shots); pb.setCountdownDuration(s.countdown_seconds); pb.setCustomization({ template: 'COUPLE' }); notify('Joined session!'); onJoined(); }
+      if (s) { pb.setTotalShots(s.total_shots); pb.setCountdownDuration(s.countdown_seconds); pb.setCustomization({ template: 'COUPLE', room: s.room_key, frameId: ROOMS.find(room => room.id === s.room_key)?.frame }); notify('Joined session!'); onJoined(); }
     } catch { notify('Failed to join session'); }
     finally { setJoining(false); }
   };
@@ -614,6 +627,7 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
   const pb = usePhotobooth();
   const sync = useCoupleSync();
   const [localCountdown, setLocalCountdown] = useState(0);
+  const [completing, setCompleting] = useState(false);
   const handledShot = useRef(-1);
   const { startCamera, reattach, ready, videoRef, facingMode, filterKey, replaceShots, setPartnerPhotos, setCustomization, setTotalShots, setCountdownDuration } = pb;
   const { session, sessionId, loadSession, cleanup, setReady, role, submitPhoto, finishCountdown } = sync;
@@ -638,7 +652,7 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
     const other = role === 'host' ? session.partner_photos : session.host_photos;
     replaceShots(own.filter(Boolean)); setPartnerPhotos(other.filter(Boolean));
     setTotalShots(session.total_shots); setCountdownDuration(session.countdown_seconds);
-    setCustomization({ namesText: `${session.host_label} ♥ ${session.partner_label}` });
+    setCustomization({ namesText: `${session.host_label} ♥ ${session.partner_label}`, room: session.room_key });
   }, [session, role, replaceShots, setPartnerPhotos, setTotalShots, setCountdownDuration, setCustomization]);
 
   const submitRef = useRef(submitPhoto);
@@ -654,7 +668,7 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
     const timer = window.setTimeout(() => {
       window.clearInterval(tick); setLocalCountdown(0);
       if (cancelled) return;
-      const photo = videoRef.current ? captureFromVideo(videoRef.current, facingMode, getFilterCss(filterKey)) : null;
+      const photo = videoRef.current ? captureFromVideo(videoRef.current, facingMode, getFilterCss(filterKey), getFilterOverlay(filterKey)) : null;
       if (photo) void submitRef.current(photo, currentShot).catch(error => notify(error.message));
       else { notify('Camera frame unavailable. Reconnect your camera.'); }
     }, Math.max(0, deadline - Date.now()));
@@ -671,11 +685,13 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
     try { await sync.startCountdown(); } catch (error) { notify(error instanceof Error ? error.message : 'Could not start capture'); }
   };
   const handleComplete = async () => {
-    if (!allDone) return;
+    if (!allDone || completing) return;
+    setCompleting(true);
     try {
       if (isHost) { const strip = await pb.generateStrip(); if (strip) await sync.completeSession(strip); }
       onComplete();
     } catch (error) { notify(error instanceof Error ? error.message : 'Could not complete shared session'); }
+    finally { setCompleting(false); }
   };
 
   return <main>
@@ -700,9 +716,9 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
         {bothReady && !allDone && <p className="ready-text">Both ready! {isHost ? 'Press START to capture together.' : 'Host will start the session.'}</p>}
         {allDone && <p className="ready-text">All shots captured! Generate your strip.</p>}
         {isHost && bothReady && !allDone && <button className="button dark session-btn" onClick={handleStartSynced} disabled={localCountdown > 0 || Boolean(session?.countdown_active)}>{localCountdown > 0 ? `COUNTDOWN ${localCountdown}` : 'START SYNCED CAPTURE'} <Camera size={16} /></button>}
-        {allDone && <button className="button dark session-btn" onClick={handleComplete}>GENERATE STRIP <ArrowRight size={16} /></button>}
+        {allDone && <button className="button dark session-btn" onClick={handleComplete} disabled={completing}>{completing ? 'SAVING SHARED STRIP…' : 'GENERATE STRIP'} <ArrowRight size={16} /></button>}
       </aside>
-      <div className="session-camera couple-session-camera">
+      <div className="session-camera couple-session-camera" data-room={pb.customization.room || 'classic'}>
         <div className="camera-feed-container session-feed">
           <CameraView filterKey={pb.filterKey} videoRef={pb.videoRef} facingMode={pb.facingMode} flash={pb.flash} countdown={localCountdown} error={pb.error} ready={pb.ready} onRetry={() => pb.startCamera()} />
         </div>
@@ -720,7 +736,7 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
   </main>;
 }
 
-function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environment', filterCss: string): string | null {
+function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environment', filterCss: string, overlay?: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): string | null {
   if (!video.videoWidth || !video.videoHeight) return null;
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
@@ -729,9 +745,9 @@ function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environ
   if (!ctx) return null;
   ctx.save();
   if (facingMode === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
-  ctx.filter = filterCss || 'none';
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  drawFilteredImage(ctx, video, filterCss, 0, 0, video.videoWidth, video.videoHeight, 0, 0, canvas.width, canvas.height);
   ctx.restore();
+  overlay?.(ctx, canvas.width, canvas.height);
   return canvas.toDataURL('image/jpeg', 0.92);
 }
 
@@ -739,7 +755,7 @@ function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environ
 
 function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (message: string) => void }) {
   const pb = usePhotobooth();
-  const [editTab, setEditTab] = useState<'TEMPLATE' | 'BACKGROUND' | 'BORDER' | 'TEXT' | 'STICKERS' | 'ORIENTATION'>('TEMPLATE');
+  const [editTab, setEditTab] = useState<'FRAME' | 'TEMPLATE' | 'BACKGROUND' | 'BORDER' | 'TEXT' | 'STICKERS' | 'ORIENTATION'>('TEMPLATE');
   const templates = pb.mode === 'DOUBLE' ? COUPLE_TEMPLATES : SOLO_TEMPLATES;
   const bgKeys = Object.keys(STRIP_BACKGROUNDS);
   const borderKeys = Object.keys(STRIP_BORDERS);
@@ -773,9 +789,10 @@ function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (m
       <aside>
         <Eyebrow text="CUSTOMIZE" />
         <div className="edit-tabs">
-          {(['TEMPLATE', 'ORIENTATION', 'BACKGROUND', 'BORDER', 'TEXT', 'STICKERS'] as const).map(t => <button key={t} className={editTab === t ? 'selected' : ''} onClick={() => setEditTab(t)}>{t}</button>)}
+          {(['FRAME', 'TEMPLATE', 'ORIENTATION', 'BACKGROUND', 'BORDER', 'TEXT', 'STICKERS'] as const).map(t => <button key={t} className={editTab === t ? 'selected' : ''} onClick={() => setEditTab(t)}>{t}</button>)}
         </div>
 
+        {editTab === 'FRAME' && <FramePicker value={pb.customization.frameId || ''} onChange={frameId => updateCustom({ frameId })} />}
         {editTab === 'TEMPLATE' && <div className="edit-section">
           {templates.map(item => {
             const def = TEMPLATE_LAYOUTS[item];
@@ -789,7 +806,7 @@ function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (m
         {editTab === 'BACKGROUND' && <div className="edit-section">
           <p className="edit-hint">Choose a background color for your strip. Dark backgrounds work well with light text.</p>
           <div className="color-grid">
-            {bgKeys.map(bg => <button key={bg} className={pb.customization.background === bg ? 'color-swatch selected' : 'color-swatch'} onClick={() => updateCustom({ background: bg })} style={{ background: STRIP_BACKGROUNDS[bg] }}><small>{bg.replace('_', ' ')}</small></button>)}
+            {bgKeys.map(bg => <button key={bg} className={pb.customization.background === bg ? 'color-swatch selected' : 'color-swatch'} onClick={() => updateCustom({ background: bg, frameId: '' })} style={{ background: STRIP_BACKGROUNDS[bg] }}><small>{bg.replace('_', ' ')}</small></button>)}
           </div>
           <div className="edit-subsection">
             <small className="edit-sub-label">TEXTURE OVERLAY</small>
@@ -873,7 +890,7 @@ function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (m
 
       <div className="strip-stage">
         <Script text="make it yours!" />
-        <div className={`photo-strip ${pb.customization.template === '35MM FILM' ? 'film' : ''}`} style={{ border: STRIP_BORDERS[pb.customization.border] !== 'none' ? STRIP_BORDERS[pb.customization.border] : undefined }}>
+        <div className="photo-strip">
           {pb.stripLoading && <div className="strip-loading"><Loader2 className="spin" size={22} /></div>}
           {pb.stripDataUrl && <img src={pb.stripDataUrl} alt="Your photo strip" />}
           <small>{pb.customization.titleText || 'FLASHBACK STUDIO'}<br />{pb.customization.namesText && <>{pb.customization.namesText}<br /></>}{pb.customization.locationText && <>{pb.customization.locationText}<br /></>}{pb.customization.dateText || new Date().toLocaleDateString('en-US')}</small>

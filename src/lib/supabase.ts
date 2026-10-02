@@ -30,6 +30,7 @@ export function ensureIdentity(): Promise<string> {
 export type CoupleSession = {
   id: string;
   code: string;
+  room_key: string;
   host_user_id: string;
   partner_user_id: string | null;
   countdown_seconds: number;

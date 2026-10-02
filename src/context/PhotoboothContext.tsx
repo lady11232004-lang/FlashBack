@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useCamera } from '@/hooks/useCamera';
-import { getFilterCss } from '@/hooks/useFilters';
+import { getFilterCss, getFilterOverlay } from '@/hooks/useFilters';
 import { generatePhotoStrip, generateCoupleStrip, DEFAULT_CUSTOMIZATION, TEMPLATE_LAYOUTS, type StripCustomization } from '@/utils/photoStrip';
 import { listGallery, saveGallery, updateGallery, deleteGallery, deviceStore, type GalleryInput, type GalleryItem } from '@/lib/gallery';
 
@@ -75,6 +75,13 @@ type PhotoboothState = {
 const Ctx = createContext<PhotoboothState | null>(null);
 const CAPTURE_FLASH_MS = 220;
 export const MAX_SHOTS = 10;
+const STUDIO_CHOICE_KEY = 'flashback-studio-choice';
+function readStudioChoice(): Partial<StripCustomization> {
+  try {
+    const choice = JSON.parse(localStorage.getItem(STUDIO_CHOICE_KEY) || '{}');
+    return { ...(typeof choice.room === 'string' ? { room: choice.room } : {}), ...(typeof choice.frameId === 'string' ? { frameId: choice.frameId } : {}) };
+  } catch { return {}; }
+}
 
 export function PhotoboothProvider({ children }: { children: ReactNode }) {
   const {
@@ -101,7 +108,7 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
   const [partnerPhotos, setPartnerPhotos] = useState<string[]>([]);
   const [stripDataUrl, setStripDataUrl] = useState('');
   const [stripLoading, setStripLoading] = useState(false);
-  const [customization, setCustomizationState] = useState<StripCustomization>(DEFAULT_CUSTOMIZATION);
+  const [customization, setCustomizationState] = useState<StripCustomization>(() => ({ ...DEFAULT_CUSTOMIZATION, ...readStudioChoice() }));
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const activeRef = useRef(false);
@@ -119,7 +126,7 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
       if (draft) {
         setMode(draft.mode); setTotalShots(draft.totalShots); setCountdownDuration(draft.countdownDuration);
         setFilterKey(draft.filterKey); setCapturedShots(draft.capturedShots); setSelectedShots(draft.selectedShots);
-        setPartnerPhotos(draft.partnerPhotos); setCustomizationState(draft.customization);
+        setPartnerPhotos(draft.partnerPhotos); setCustomizationState({ ...DEFAULT_CUSTOMIZATION, ...draft.customization, ...readStudioChoice() });
         setStripDataUrl(draft.stripDataUrl); setVideoBlobUrl(draft.videoBlobUrl);
       }
     }).catch(error => { if (!cancelled) setGalleryError(error.message); }).finally(() => { if (!cancelled) setDraftReady(true); });
@@ -159,10 +166,16 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
     setFlash(false);
     setStripDataUrl('');
     setVideoBlobUrl(null);
+    try { localStorage.setItem(STUDIO_CHOICE_KEY, JSON.stringify({ room: 'classic', frameId: '' })); } catch { /* Device storage errors are reported by the draft save. */ }
     setCustomizationState(DEFAULT_CUSTOMIZATION);
   }, []);
 
   const setCustomization = useCallback((patch: Partial<StripCustomization>) => {
+    // Small preferences are saved synchronously, so an immediate refresh cannot lose a click.
+    if (patch.room !== undefined || patch.frameId !== undefined) {
+      try { localStorage.setItem(STUDIO_CHOICE_KEY, JSON.stringify({ ...readStudioChoice(), ...(patch.room !== undefined ? { room: patch.room } : {}), ...(patch.frameId !== undefined ? { frameId: patch.frameId } : {}) })); }
+      catch { setGalleryError('Your browser could not preserve the selected room/frame.'); }
+    }
     setCustomizationState((prev) => {
       const next = { ...prev, ...patch };
       if (patch.template) {
@@ -190,7 +203,7 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setFlash(false), CAPTURE_FLASH_MS);
 
     const filterCss = getFilterCss(filterKey);
-    const photo = captureWithFilter(filterCss);
+    const photo = captureWithFilter(filterCss, getFilterOverlay(filterKey));
     if (photo) {
       setCapturedShots((prev) => [...prev, photo]);
     }
@@ -212,7 +225,7 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
     setFlash(true);
     setTimeout(() => setFlash(false), CAPTURE_FLASH_MS);
     const filterCss = getFilterCss(filterKey);
-    const photo = captureWithFilter(filterCss);
+    const photo = captureWithFilter(filterCss, getFilterOverlay(filterKey));
     if (photo) {
       setCapturedShots((prev) => {
         const next = [...prev];
