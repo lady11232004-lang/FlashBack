@@ -241,14 +241,14 @@ function SideToolsPanel({ filterKey, onPickFilter, template, onPickTemplate, tem
   templates: string[];
 }) {
   const pb = usePhotobooth();
-  const [framesOpen, setFramesOpen] = useState(false);
+  const [framesOpen, setFramesOpen] = useState(true);
   const [sampleImages, setSampleImages] = useState<Record<string,string>>({});
   const templateKeys=templates.join('|');
   useEffect(()=>{let cancelled=false;void Promise.all(templateKeys.split('|').map(async key=>[key,await templateSample(key)] as const)).then(entries=>{if(!cancelled)setSampleImages(Object.fromEntries(entries));});return()=>{cancelled=true;};},[templateKeys]);
   return <div className="side-tools-panel">
-    <details onToggle={event => setFramesOpen(event.currentTarget.open)}><summary>THEMES &amp; FRAMES</summary>{framesOpen && <FramePicker value={pb.customization.frameId || ''} onChange={frameId => pb.setCustomization({ frameId, ...(FRAME_PRESETS.find(frame => frame.id === frameId)?.category === 'Portrait' ? { template: 'EDITORIAL' } : {}) })} />}</details>
+    <details open onToggle={event => setFramesOpen(event.currentTarget.open)}><summary>THEMES &amp; FRAMES</summary>{framesOpen && <FramePicker value={pb.customization.frameId || ''} onChange={frameId => pb.setCustomization({ frameId, ...(FRAME_PRESETS.find(frame => frame.id === frameId)?.category === 'Portrait' ? { template: 'EDITORIAL' } : {}) })} />}</details>
     <div className="side-tools-section">
-      <h3>FILTERS</h3>
+      <h3>FILTERS · INCLUDING PORTRAIT &amp; ANALOG</h3>
       <div className="side-filter-list">
         {COLOR_FILTERS.map((f) => (
           <button key={f.key} className={filterKey === f.key ? 'side-filter-item selected' : 'side-filter-item'} onClick={() => onPickFilter(f.key)}>
@@ -259,7 +259,7 @@ function SideToolsPanel({ filterKey, onPickFilter, template, onPickTemplate, tem
       </div>
     </div>
     <div className="side-tools-section">
-      <h3>TEMPLATES</h3>
+      <h3>TEMPLATES &amp; SAMPLE PREVIEWS</h3>
       <div className="side-template-list">
         {templates.map((key) => {
           const def = TEMPLATE_LAYOUTS[key];
@@ -318,10 +318,10 @@ function Preview({ navigate, notify }: { navigate: (view: View) => void; notify:
   const pickFilter = (key: string) => { pb.setFilterKey(key); notify(`Filter: ${getFilterLabel(key)}`); };
   const pickTemplate = (key: string) => { pb.setCustomization({ template: key }); notify(`Template: ${TEMPLATE_LAYOUTS[key]?.label || key}`); };
 
-  return <main><section className="preview-page section-pad">
+  return <main><div className="capture-tools-bar"><button className="button light" aria-expanded={showPanel} onClick={() => setShowPanel(!showPanel)}>{showPanel ? 'HIDE CAMERA TOOLS' : 'SHOW FRAMES, FILTERS & TEMPLATES'}</button><span>Zoom and grid are below the camera. Frame, filter and template choices are in the tools panel.</span></div><section className="preview-page section-pad">
     <div className="preview-sidebar">
       <button className="back-link" onClick={() => navigate('modes')}><ArrowLeft size={14} /> BACK</button>
-      <Eyebrow text="ACTIVE SESSION" /><h1>STUDIO<br />PREVIEW</h1>
+      <button className="back-link" onClick={() => navigate('makers')}>UPLOAD PHOTOS · COLLAGE &amp; INSTANT PRINT</button><Eyebrow text="ACTIVE SESSION" /><h1>STUDIO<br />PREVIEW</h1>
       <p>Adjust your frame, check the lighting, and strike a pose. The camera is primed for your next memory.</p>
       <div className="preview-stats">
         <span>STATUS<strong>{pb.error ? 'ERROR' : pb.ready ? 'READY' : 'CONNECTING'}</strong></span>
@@ -406,7 +406,7 @@ function Session({ navigate, notify }: { navigate: (view: View) => void; notify:
       <span className="camera-details">LENS <b>{pb.facingMode === 'user' ? 'FRONT' : 'REAR'}</b> FILTER <b>{getFilterLabel(pb.filterKey)}</b> COUNTDOWN <b>{pb.countdownDuration}S</b></span>
     </div>
     {recorder.error && <p className="couple-error" role="status">{recorder.error}</p>}
-    <button className="button light session-tools-toggle" onClick={() => setShowPanel(!showPanel)} aria-expanded={showPanel}>FILTERS &amp; TEMPLATES</button>
+    <button className="button light session-tools-toggle" onClick={() => navigate('makers')}>UPLOAD PHOTOS · COLLAGE &amp; INSTANT PRINT</button><button className="button light session-tools-toggle" onClick={() => setShowPanel(!showPanel)} aria-expanded={showPanel}>FILTERS, FRAMES &amp; TEMPLATES</button>
     <section className={showPanel ? 'session-page with-panel' : 'session-page'}><aside>
       <h1>strike a<br />pose.</h1>
       <Script text="don't be shy!" />
@@ -731,7 +731,7 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
       <span className="camera-details">CODE <b>{sync.session?.code}</b> ROLE <b>{isHost ? 'HOST' : 'PARTNER'}</b></span>
     </div>
     {sync.error && <p className="couple-error" role="alert">{sync.error}</p>}
-    <div className="capture-tools-bar"><button className="button outline" onClick={() => setShowTools(value => !value)}>FILTERS &amp; TEMPLATES</button><span>FILTER: {getFilterLabel(pb.filterKey)} · {session?.countdown_seconds || 3}s TIMER</span></div>
+    <div className="capture-tools-bar"><button className="button light" onClick={() => navigate('makers')}>UPLOAD PHOTOS / CREATE</button><button className="button outline" onClick={() => setShowTools(value => !value)}>FILTERS, FRAMES &amp; TEMPLATES</button><span>FILTER: {getFilterLabel(pb.filterKey)} · {session?.countdown_seconds || 3}s TIMER</span></div>
     <section className={`session-page couple-session-page ${showTools ? 'with-tools' : ''}`}>
       <aside>
         <button className="back-link" onClick={() => navigate('modes')}><ArrowLeft size={14} /> EXIT</button>

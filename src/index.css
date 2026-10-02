@@ -134,3 +134,21 @@ body{background:var(--paper)}
 .hero-image{height:clamp(300px,58vh,520px)}
 @media(max-width:900px){.hero{min-height:0;padding-top:40px;padding-bottom:60px;gap:40px}.hero-image{height:280px}.hero h1{font-size:clamp(48px,7vw,68px)}.hero h1 span{font-size:clamp(54px,8vw,76px)}}
 @media(max-width:460px){.hero.section-pad{padding-left:24px;padding-right:24px}.hero h1{font-size:48px;letter-spacing:-2px}.hero h1 span{font-size:58px}.hero-image{height:220px}}
+/* Keep camera tools in normal page flow: narrow desktops cannot fit three fixed columns. */
+.preview-page.section-pad{padding-left:4%;padding-right:4%;gap:24px;grid-template-columns:minmax(190px,230px) minmax(0,1fr) minmax(260px,300px)}
+.session-page.with-panel,.couple-session-page.with-tools{grid-template-columns:minmax(190px,230px) minmax(0,1fr) minmax(260px,300px)}
+.preview-page>*,.session-page>*,.edit-page>*{min-width:0}
+.side-tools-panel{width:100%;max-height:none;overflow:visible;align-self:start;color:var(--ink)}
+.side-tools-panel details>summary{padding:12px 0;font:700 12px 'DM Sans';cursor:pointer}
+.side-tools-panel .frame-option img{height:160px;object-fit:contain}
+.side-tools-panel .frame-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.side-filter-item,.side-template-item{min-width:0;overflow-wrap:anywhere}
+.side-template-icon{width:48px;height:64px}.side-template-icon img{height:100%;object-fit:contain}
+.camera-controls{height:auto;min-height:100px;flex-wrap:wrap;gap:16px;padding:16px}
+.camera-controls>span{min-width:0;overflow-wrap:anywhere}
+.session-page aside{padding:32px 24px}.session-page aside h1{font-size:clamp(30px,3vw,43px)}
+.shot-boxes{flex-wrap:wrap}.shot-history{min-width:0}
+.camera-zoom{gap:6px;padding:6px;white-space:nowrap}.camera-zoom input{width:clamp(45px,6vw,90px);min-width:0}
+@media(max-width:1200px){.preview-page.section-pad,.session-page.with-panel,.couple-session-page.with-tools{grid-template-columns:minmax(190px,230px) minmax(0,1fr)}.side-tools-panel{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}.side-filter-list,.side-template-list{grid-template-columns:repeat(4,minmax(0,1fr))}.side-tools-panel .frame-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.edit-page{grid-template-columns:1fr}.edit-page aside{border:0;border-bottom:1px solid var(--line)}.strip-stage{padding:40px 20px}}
+@media(max-width:900px){.preview-page.section-pad,.session-page.with-panel,.couple-session-page.with-tools{grid-template-columns:minmax(0,1fr)}.camera-preview{order:0}.side-filter-list,.side-template-list{grid-template-columns:repeat(2,minmax(0,1fr))}.side-tools-panel .frame-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.session-page aside{min-height:0}.session-page aside .session-btn{margin-top:24px}.section-pad{padding-left:6%;padding-right:6%}.shot-history{grid-template-columns:1fr}}
+@media(max-width:460px){.side-tools-panel .frame-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.camera-zoom{font-size:10px}.camera-zoom input{width:55px}.camera-controls .button{width:auto}.hero h1{overflow-wrap:anywhere}.meta{gap:16px;flex-wrap:wrap}}

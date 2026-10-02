@@ -25,12 +25,16 @@ test('two private browser identities capture together and recover shared photos 
     await partner.goto(invite);
     await partner.getByPlaceholder('Your name / your city').fill('Partner / Tokyo');
     await partner.getByRole('button', { name: 'JOIN SESSION', exact: true }).click();
+    await page.setViewportSize({width:1101,height:850});
+    await partner.setViewportSize({width:1024,height:850});
+    await expect(page.getByRole('slider', {name:'Camera zoom'})).toBeVisible();
+    await expect(partner.getByRole('tab', {name:/Signature/})).toBeVisible();
     await expect(page.getByRole('button', { name: 'START SYNCED CAPTURE' })).toBeEnabled({ timeout: 30000 });
     await expect(partner.locator('.couple-session-camera')).toHaveAttribute('data-room', 'laundry');
     await page.getByRole('button', { name: 'Warm', exact: true }).click();
     await expect(page.locator('video')).toHaveCSS('filter', /sepia/);
     await expect(page.locator('.side-template-item')).toHaveCount(12);
-    await page.getByText('THEMES & FRAMES', { exact: true }).click();
+    await expect(page.getByRole('tab', { name: /^Signature / })).toBeVisible();
     await page.getByRole('tab', { name: /^Themes / }).click();
     await page.getByRole('button', { name: 'Galaxy frame preview Galaxy', exact: true }).click();
     await page.getByText('THEMES & FRAMES', { exact: true }).click();

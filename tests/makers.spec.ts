@@ -40,3 +40,24 @@ test('camera zoom changes preview and capture crop, with composition grid',async
   const source=await page.locator('.shot-boxes img').getAttribute('src');expect(source).toMatch(/^data:image\/jpeg/);
   await expect(page.getByLabel('Camera zoom')).toHaveValue('2');
 });
+
+test('camera features stay accessible without overlapping at intermediate desktop widths',async({page})=>{
+  for(const width of [360,768,901,1024,1101,1200,1280,1440,1920]){
+    await page.setViewportSize({width,height:850});
+    for(const view of ['preview','session']) {
+    await page.goto(`/#${view}`);
+    await expect(page.getByRole('slider',{name:'Camera zoom'})).toBeVisible();
+    await expect(page.getByRole('tab',{name:/Signature/})).toBeVisible();
+    await expect(page.getByRole('button',{name:'Rose Milk',exact:true})).toBeVisible();
+    await expect(page.getByRole('button',{name:/UPLOAD PHOTOS · COLLAGE/})).toBeVisible();
+    const geometry=await page.evaluate(()=>{
+      const camera=document.querySelector('.camera-preview, .session-camera')!.getBoundingClientRect();
+      const panel=document.querySelector('.side-tools-panel')!.getBoundingClientRect();
+      return {overlap:Math.min(camera.right,panel.right)>Math.max(camera.left,panel.left)+1&&Math.min(camera.bottom,panel.bottom)>Math.max(camera.top,panel.top)+1,tooWide:document.documentElement.scrollWidth>innerWidth+1,panelWidth:panel.width};
+    });
+    expect(geometry.overlap,`${width}px camera/tools overlap`).toBe(false);
+    expect(geometry.tooWide,`${width}px horizontal overflow`).toBe(false);
+    expect(geometry.panelWidth).toBeGreaterThan(200);
+    }
+  }
+});
