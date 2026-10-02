@@ -487,7 +487,7 @@ export async function generateCoupleStrip(
   }
   const coupleCustom: StripCustomization = {
     ...customization,
-    layout: 'sidebyside',
+    layout: customization.template === 'COUPLE' ? 'sidebyside' : customization.layout,
     titleText: customization.titleText || 'FLASHBACK STUDIO',
     namesText: customization.namesText || `${hostLabel} \u2665 ${partnerLabel}`,
     locationText: customization.locationText || `${hostLabel.split(' / ')[1] || hostLabel} \u00d7 ${partnerLabel.split(' / ')[1] || partnerLabel}`,

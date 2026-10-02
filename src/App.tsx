@@ -35,7 +35,7 @@ const SHOT_OPTIONS = [3, 4, 6];
 const COUNTDOWN_OPTIONS = [3, 5, 10];
 const STICKER_OPTIONS = ['\u2665', '\u2605', '\u2728', '\u2729', '\u2606', '\u2661', '\u2764', '\u2727', '\u2726', '\u2600', '\u2601', '\u2602'];
 const SOLO_TEMPLATES = ['CLASSIC', 'MINIMAL', 'FILM', '35MM FILM', 'VINTAGE 70S', 'DATE STAMP', 'POLAROID', 'RETRO', 'EDITORIAL', 'CLEAN MODERN', 'KODAK'];
-const COUPLE_TEMPLATES = ['COUPLE', 'CLASSIC', 'FILM', '35MM FILM', 'POLAROID', 'KODAK'];
+const COUPLE_TEMPLATES = ['COUPLE', ...SOLO_TEMPLATES];
 
 const VIEWS: View[] = ['rooms', 'home', 'about', 'gallery', 'modes', 'preview', 'session', 'select', 'edit', 'result', 'couple-create', 'couple-waiting', 'couple-join', 'couple-session', 'privacy', 'terms'];
 function routeView(): View {
@@ -223,7 +223,7 @@ function Gallery({ navigate, notify }: { navigate: (view: View) => void; notify:
 
 function Modes({ navigate }: { navigate: (view: View) => void }) {
   const pb = usePhotobooth();
-  return <main><section className="modes-page section-pad"><Eyebrow text="SELECT YOUR EXPERIENCE" /><h1>HOW WILL<br />YOU FLASH?</h1><Script text="capture the magic" /><div className="quote">"Photography is the story I fail to put into words."</div><div className="mode-choice-grid"><Experience image={images.mode} label="SOLO MODE" title="SINGLE FRAME" text="The classic editorial experience. Studio-grade lighting optimized for a single subject. Perfect for headshots, fashion poses, or intimate self-portraits." onClick={() => { pb.setMode('SOLO'); navigate('preview'); }} /><Experience image={images.preview} label="TOGETHER MODE" title="LONG-DISTANCE" text="Bridge the distance. Create a session, share the link with your partner, and capture synchronized photos together — same booth, different places." onClick={() => { pb.setMode('DOUBLE'); navigate('couple-create'); }} /></div><div className="tip"><Sparkles size={16} /> PRO TIP <p>Long-distance mode works best with a high-speed connection. Ensure both partners are in well-lit areas and have granted camera permission.</p></div></section></main>;
+  return <main><section className="modes-page section-pad"><Eyebrow text="SELECT YOUR EXPERIENCE" /><h1>HOW WILL<br />YOU FLASH?</h1><Script text="capture the magic" /><div className="quote">"Photography is the story I fail to put into words."</div><div className="mode-choice-grid"><Experience image={images.mode} label="SOLO MODE" title="SINGLE FRAME" text="The classic editorial experience. Studio-grade lighting optimized for a single subject. Perfect for headshots, fashion poses, or intimate self-portraits." onClick={() => { pb.setMode('SOLO'); navigate('rooms'); }} /><Experience image={images.preview} label="TOGETHER MODE" title="LONG-DISTANCE" text="Bridge the distance. Create a session, share the link with your partner, and capture synchronized photos together — same booth, different places." onClick={() => { pb.setMode('DOUBLE'); navigate('couple-create'); }} /></div><div className="tip"><Sparkles size={16} /> PRO TIP <p>Long-distance mode works best with a high-speed connection. Ensure both partners are in well-lit areas and have granted camera permission.</p></div></section></main>;
 }
 
 /* ============ FILTER PANEL ============ */
@@ -235,7 +235,10 @@ function SideToolsPanel({ filterKey, onPickFilter, template, onPickTemplate, tem
   template: string; onPickTemplate: (key: string) => void;
   templates: string[];
 }) {
+  const pb = usePhotobooth();
+  const [framesOpen, setFramesOpen] = useState(false);
   return <div className="side-tools-panel">
+    <details onToggle={event => setFramesOpen(event.currentTarget.open)}><summary>THEMES &amp; FRAMES</summary>{framesOpen && <FramePicker value={pb.customization.frameId || ''} onChange={frameId => pb.setCustomization({ frameId })} />}</details>
     <div className="side-tools-section">
       <h3>FILTERS</h3>
       <div className="side-filter-list">
@@ -335,7 +338,7 @@ function Preview({ navigate, notify }: { navigate: (view: View) => void; notify:
         <button className={`icon-button ${showPanel ? 'tool-on' : ''}`} onClick={() => setShowPanel(!showPanel)} aria-label="Toggle tools"><Sparkles size={19} /></button>
       </div>
     </div>
-    {showPanel && <SideToolsPanel filterKey={pb.filterKey} onPickFilter={pickFilter} template={pb.customization.template} onPickTemplate={pickTemplate} templates={SOLO_TEMPLATES} />}
+    {showPanel && <SideToolsPanel filterKey={pb.filterKey} onPickFilter={pickFilter} template={pb.customization.template} onPickTemplate={pickTemplate} templates={COUPLE_TEMPLATES} />}
   </section></main>;
 }
 
@@ -411,7 +414,7 @@ function Session({ navigate, notify }: { navigate: (view: View) => void; notify:
       </div>
       <div className="exposure">DEVICE CAMERA &nbsp; FRAME <b>#{shots}</b></div>
     </div>
-    {showPanel && <SideToolsPanel filterKey={pb.filterKey} onPickFilter={pickFilter} template={pb.customization.template} onPickTemplate={pickTemplate} templates={SOLO_TEMPLATES} />}</section>
+    {showPanel && <SideToolsPanel filterKey={pb.filterKey} onPickFilter={pickFilter} template={pb.customization.template} onPickTemplate={pickTemplate} templates={COUPLE_TEMPLATES} />}</section>
     <section className="shot-history section-pad">
       <span>SHOT HISTORY — TAP ANY PHOTO TO RETAKE</span>
       <div className="shot-boxes">{Array.from({ length: Math.max(shots, pb.totalShots) }).map((_, i) => <div key={i} className={i < shots ? 'has-photo' : ''} onClick={() => i < shots && !pb.isCapturing && !finishing && handleRetake(i)}>{i < shots ? <><img src={pb.capturedShots[i]} alt={`Shot ${i + 1}`} />{retakeIndex === i && <div className="retaking"><Loader2 className="spin" size={16} /> RETAKING</div>}<small className="retake-label">RETAKE</small></> : <Camera size={22} />}</div>)}</div>
@@ -629,6 +632,12 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
   const [localCountdown, setLocalCountdown] = useState(0);
   const [completing, setCompleting] = useState(false);
   const handledShot = useRef(-1);
+  const finishingShot = useRef(-1);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const pendingPhoto = useRef<{ photo: string; shot: number } | null>(null);
+  const [showTools, setShowTools] = useState(true);
+  const [starting, setStarting] = useState(false);
   const { startCamera, reattach, ready, videoRef, facingMode, filterKey, replaceShots, setPartnerPhotos, setCustomization, setTotalShots, setCountdownDuration } = pb;
   const { session, sessionId, loadSession, cleanup, setReady, role, submitPhoto, finishCountdown } = sync;
   const isHost = role === 'host';
@@ -659,30 +668,36 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
   useEffect(() => { submitRef.current = submitPhoto; }, [submitPhoto]);
   const captureAt = session?.capture_at;
   const currentShot = session?.current_shot ?? 0;
+  const ownShotSaved = Boolean(myPhotos[currentShot]);
   useEffect(() => {
-    if (!captureAt || !ready || handledShot.current === currentShot) return;
+    if (!captureAt || !ready || ownShotSaved || handledShot.current === currentShot) return;
     handledShot.current = currentShot;
     let cancelled = false;
     const deadline = new Date(captureAt).getTime();
+    setLocalCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
     const tick = window.setInterval(() => setLocalCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))), 100);
     const timer = window.setTimeout(() => {
       window.clearInterval(tick); setLocalCountdown(0);
       if (cancelled) return;
       const photo = videoRef.current ? captureFromVideo(videoRef.current, facingMode, getFilterCss(filterKey), getFilterOverlay(filterKey)) : null;
-      if (photo) void submitRef.current(photo, currentShot).catch(error => notify(error.message));
+      if (photo) { pendingPhoto.current = { photo, shot: currentShot }; setUploading(true); setUploadError(''); void submitRef.current(photo, currentShot).then(() => { pendingPhoto.current = null; }).catch(error => { setUploadError('Photo could not sync. Retry without taking another photo.'); notify(error.message); }).finally(() => setUploading(false)); }
       else { notify('Camera frame unavailable. Reconnect your camera.'); }
     }, Math.max(0, deadline - Date.now()));
     return () => { cancelled = true; window.clearInterval(tick); window.clearTimeout(timer); handledShot.current = -1; };
-  }, [captureAt, currentShot, ready, videoRef, facingMode, filterKey, notify]);
+  }, [captureAt, currentShot, ready, ownShotSaved, videoRef, facingMode, filterKey, notify]);
 
   useEffect(() => {
-    if (isHost && session?.countdown_active && session.host_photos[currentShot] && session.partner_photos[currentShot]) {
-      void finishCountdown().catch(error => notify(error.message));
+    if (isHost && session?.countdown_active && session.host_photos[currentShot] && session.partner_photos[currentShot] && finishingShot.current !== currentShot) {
+      finishingShot.current = currentShot;
+      void finishCountdown().catch(error => { finishingShot.current = -1; notify(error.message); });
     }
   }, [isHost, session, currentShot, finishCountdown, notify]);
 
   const handleStartSynced = async () => {
+    if (starting) return;
+    setStarting(true);
     try { await sync.startCountdown(); } catch (error) { notify(error instanceof Error ? error.message : 'Could not start capture'); }
+    finally { setStarting(false); }
   };
   const handleComplete = async () => {
     if (!allDone || completing) return;
@@ -701,7 +716,8 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
       <span className="camera-details">CODE <b>{sync.session?.code}</b> ROLE <b>{isHost ? 'HOST' : 'PARTNER'}</b></span>
     </div>
     {sync.error && <p className="couple-error" role="alert">{sync.error}</p>}
-    <section className="session-page couple-session-page">
+    <div className="capture-tools-bar"><button className="button outline" onClick={() => setShowTools(value => !value)}>FILTERS &amp; TEMPLATES</button><span>FILTER: {getFilterLabel(pb.filterKey)} · {session?.countdown_seconds || 3}s TIMER</span></div>
+    <section className={`session-page couple-session-page ${showTools ? 'with-tools' : ''}`}>
       <aside>
         <button className="back-link" onClick={() => navigate('modes')}><ArrowLeft size={14} /> EXIT</button>
         <h1>together<br />apart.</h1>
@@ -715,7 +731,8 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
         {!bothReady && <p className="waiting-text">Waiting for both partners to connect cameras...</p>}
         {bothReady && !allDone && <p className="ready-text">Both ready! {isHost ? 'Press START to capture together.' : 'Host will start the session.'}</p>}
         {allDone && <p className="ready-text">All shots captured! Generate your strip.</p>}
-        {isHost && bothReady && !allDone && <button className="button dark session-btn" onClick={handleStartSynced} disabled={localCountdown > 0 || Boolean(session?.countdown_active)}>{localCountdown > 0 ? `COUNTDOWN ${localCountdown}` : 'START SYNCED CAPTURE'} <Camera size={16} /></button>}
+        {isHost && bothReady && !allDone && <button className="button dark session-btn" onClick={handleStartSynced} disabled={starting || uploading || localCountdown > 0 || Boolean(session?.countdown_active)}>{starting ? 'STARTING TIMER…' : localCountdown > 0 ? `COUNTDOWN ${localCountdown}` : session?.countdown_active || uploading ? 'SAVING BOTH PHOTOS…' : 'START SYNCED CAPTURE'} <Camera size={16} /></button>}
+        {uploadError && <div role="alert"><p>{uploadError}</p><button className="button outline" disabled={uploading} onClick={async () => { const pending = pendingPhoto.current; if (!pending) return; setUploading(true); try { await submitRef.current(pending.photo, pending.shot); pendingPhoto.current = null; setUploadError(''); } catch (error) { notify(error instanceof Error ? error.message : 'Sync failed. Try again.'); } finally { setUploading(false); } }}>RETRY PHOTO SYNC</button></div>}
         {allDone && <button className="button dark session-btn" onClick={handleComplete} disabled={completing}>{completing ? 'SAVING SHARED STRIP…' : 'GENERATE STRIP'} <ArrowRight size={16} /></button>}
       </aside>
       <div className="session-camera couple-session-camera" data-room={pb.customization.room || 'classic'}>
@@ -727,6 +744,7 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
           {partnerPhotos.length > 0 && <div className="photo-column"><small>PARTNER</small>{partnerPhotos.map((p, i) => <img key={i} src={p} alt={`Partner shot ${i + 1}`} />)}</div>}
         </div>
       </div>
+      {showTools && <SideToolsPanel filterKey={pb.filterKey} onPickFilter={key => { if (!session?.countdown_active && !uploading) pb.setFilterKey(key); }} template={pb.customization.template} onPickTemplate={template => { if (!session?.countdown_active && !uploading) pb.setCustomization({ template }); }} templates={[...new Set([...SOLO_TEMPLATES, ...COUPLE_TEMPLATES])]} />}
     </section>
     <section className="shot-history section-pad">
       <span>SYNCED SHOT HISTORY</span>
@@ -739,8 +757,9 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
 function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environment', filterCss: string, overlay?: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): string | null {
   if (!video.videoWidth || !video.videoHeight) return null;
   const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   ctx.save();
@@ -748,7 +767,7 @@ function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environ
   drawFilteredImage(ctx, video, filterCss, 0, 0, video.videoWidth, video.videoHeight, 0, 0, canvas.width, canvas.height);
   ctx.restore();
   overlay?.(ctx, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', 0.92);
+  return canvas.toDataURL('image/jpeg', 0.82);
 }
 
 /* ============ EDIT / CUSTOMIZATION ============ */
@@ -756,7 +775,7 @@ function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environ
 function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (message: string) => void }) {
   const pb = usePhotobooth();
   const [editTab, setEditTab] = useState<'FRAME' | 'TEMPLATE' | 'BACKGROUND' | 'BORDER' | 'TEXT' | 'STICKERS' | 'ORIENTATION'>('TEMPLATE');
-  const templates = pb.mode === 'DOUBLE' ? COUPLE_TEMPLATES : SOLO_TEMPLATES;
+  const templates = [...new Set([...SOLO_TEMPLATES, ...COUPLE_TEMPLATES])];
   const bgKeys = Object.keys(STRIP_BACKGROUNDS);
   const borderKeys = Object.keys(STRIP_BORDERS);
   const textColors = Object.keys(TEXT_COLORS);

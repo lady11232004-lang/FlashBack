@@ -13,8 +13,10 @@ export function useCoupleSync() {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const mountedRef = useRef(true);
   const refreshingRef = useRef(false);
+  const latestRef = useRef<CoupleSession | null>(null);
+  useEffect(() => { latestRef.current = session; }, [session]);
   const applySession = useCallback((data: CoupleSession) => {
-    setSession(previous => previous?.id === data.id && Date.parse(previous.updated_at) > Date.parse(data.updated_at) ? previous : data);
+    setSession(previous => previous?.id === data.id && Date.parse(previous.updated_at) >= Date.parse(data.updated_at) ? previous : data);
   }, []);
 
   const cleanup = useCallback(() => {
@@ -30,10 +32,15 @@ export function useCoupleSync() {
     return data as CoupleSession | null;
   }, []);
 
-  const refreshSession = useCallback(async (id: string) => {
+  const refreshSession = useCallback(async (id: string, realtime = false) => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
     try {
+      if (!realtime) {
+      const { data: stamp, error: stampError } = await requireBackend().from('couple_sessions').select('updated_at').eq('id', id).maybeSingle();
+      if (stampError) throw stampError;
+      if (!stamp || (latestRef.current?.id === id && stamp.updated_at === latestRef.current.updated_at)) return;
+      }
       const fresh = await fetchSession(id);
       if (fresh && mountedRef.current) applySession(fresh);
     } catch (error) { if (mountedRef.current) setError(error instanceof Error ? error.message : 'Could not refresh shared photos.'); }
@@ -51,7 +58,7 @@ export function useCoupleSync() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'couple_sessions', filter: `id=eq.${data.id}` }, payload => {
         void payload;
         // Large media fields can be omitted from Realtime payloads. Fetch the full, RLS-protected row.
-        void refreshSession(data.id);
+        void refreshSession(data.id, true);
       }).subscribe();
   }, [refreshSession, applySession]);
 

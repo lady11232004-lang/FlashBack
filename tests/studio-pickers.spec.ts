@@ -21,7 +21,7 @@ test('room choices persist and categorized frames render into the saved download
   for(const card of await page.locator('.select-card').all()) await card.click();
   await page.getByRole('button',{name:'CONTINUE TO CUSTOMIZE'}).click();
   await page.getByRole('button',{name:'FRAME',exact:true}).click();
-  for(const category of ['Simple','Patterns','Collage','Travel','Food','Fall','Winter','Memes']) {
+  for(const category of ['Simple','Patterns','Collage','Travel','Food','Fall','Winter','Memes','Themes']) {
     await page.getByRole('tab',{name:new RegExp(`^${category} `)}).click();
     const frames=page.locator('.frame-option');
     for(const frame of await frames.all()) {await expect(frame.locator('img')).toBeVisible();await frame.click();await expect(frame).toHaveAttribute('aria-pressed','true');}
@@ -42,7 +42,7 @@ test('room choices persist and categorized frames render into the saved download
   await expect(page.locator('.archive-preview')).toHaveAttribute('src',source!);
 });
 
-test('all 35 frame presets produce distinct exported decorations', async({page})=>{
+test('all 43 frame presets produce distinct exported decorations', async({page})=>{
   await page.goto('/');
   const output=await page.evaluate(async()=>{
     const {FRAME_PRESETS}=await import('/src/utils/frames.ts');
@@ -53,5 +53,14 @@ test('all 35 frame presets produce distinct exported decorations', async({page})
     for(const frame of FRAME_PRESETS)results.push({id:frame.id,src:await generatePhotoStrip([photo,photo,photo],{...DEFAULT_CUSTOMIZATION,frameId:frame.id,dateText:' '})});
     return results;
   });
-  expect(output).toHaveLength(35);expect(new Set(output.map(frame=>frame.src)).size).toBe(35);
+  expect(output).toHaveLength(43);expect(new Set(output.map(frame=>frame.src)).size).toBe(43);
+});
+
+for (const width of [1440, 390]) test(`couple setup uses a responsive layout at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 }); await page.goto('/#couple-create');
+  await expect(page.locator('.room-card')).toHaveCount(8);
+  const box = await page.locator('.couple-create-page').boundingBox();
+  if (width > 1000) expect(box!.width).toBeGreaterThan(900);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: `test-results/couple-setup-${width}.png`, fullPage: true });
 });

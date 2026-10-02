@@ -8,6 +8,11 @@ test('two private browser identities capture together and recover shared photos 
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message)); partner.on('pageerror', error => errors.push(error.message));
   let id = '';
+  let interruptPhoto = false;
+  await page.route('**/rest/v1/couple_sessions*', async route => {
+    if (interruptPhoto && route.request().method() === 'PATCH' && route.request().postData()?.includes('host_photos')) { interruptPhoto = false; await route.abort('failed'); }
+    else await route.continue();
+  });
   try {
     await page.goto('/#couple-create');
     await page.getByPlaceholder('Your name / your city').fill('Host / Manila');
@@ -22,8 +27,19 @@ test('two private browser identities capture together and recover shared photos 
     await partner.getByRole('button', { name: 'JOIN SESSION', exact: true }).click();
     await expect(page.getByRole('button', { name: 'START SYNCED CAPTURE' })).toBeEnabled({ timeout: 30000 });
     await expect(partner.locator('.couple-session-camera')).toHaveAttribute('data-room', 'laundry');
+    await page.getByRole('button', { name: 'Warm', exact: true }).click();
+    await expect(page.locator('video')).toHaveCSS('filter', /sepia/);
+    await expect(page.locator('.side-template-item')).toHaveCount(12);
+    await page.getByText('THEMES & FRAMES', { exact: true }).click();
+    await page.getByRole('tab', { name: /^Themes / }).click();
+    await page.getByRole('button', { name: 'Galaxy frame preview Galaxy', exact: true }).click();
+    await page.getByText('THEMES & FRAMES', { exact: true }).click();
     for (let shot = 1; shot <= 3; shot++) {
+      interruptPhoto = shot === 2;
       await page.getByRole('button', { name: 'START SYNCED CAPTURE' }).click();
+      await expect(page.locator('.countdown-overlay')).toBeVisible({ timeout: 10000 });
+      await expect(partner.locator('.countdown-overlay')).toBeVisible({ timeout: 10000 });
+      if (shot === 2) { await expect(page.getByRole('button', { name: 'RETRY PHOTO SYNC' })).toBeVisible({ timeout: 30000 }); await page.getByRole('button', { name: 'RETRY PHOTO SYNC' }).click(); }
       await expect(page.locator('.photo-column').first().locator('img')).toHaveCount(shot, { timeout: 30000 });
       await expect(partner.locator('.photo-column').first().locator('img')).toHaveCount(shot, { timeout: 30000 });
       await expect(page.locator('.photo-column').nth(1).locator('img')).toHaveCount(shot, { timeout: 30000 });

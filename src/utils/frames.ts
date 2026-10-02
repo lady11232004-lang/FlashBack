@@ -1,7 +1,8 @@
 export type FramePreset = { id: string; label: string; category: string; color: string; ink: string; motif: string; mark: string };
-export const FRAME_CATEGORIES = ['Simple', 'Patterns', 'Collage', 'Travel', 'Food', 'Fall', 'Winter', 'Memes'];
+export const FRAME_CATEGORIES = ['Simple', 'Patterns', 'Collage', 'Travel', 'Food', 'Fall', 'Winter', 'Memes', 'Themes'];
 const group = (category: string, items: [string, string, string, string, string][]): FramePreset[] => items.map(([label, color, ink, motif, mark]) => ({ id: `${category.toLowerCase()}-${label.toLowerCase().replace(/\W+/g, '-')}`, label, category, color, ink, motif, mark }));
 export const FRAME_PRESETS: FramePreset[] = [
+  ...group('Themes', [['Ocean','#cce7eb','#256775','dots','SEA YOU SOON'],['Garden','#e0ead3','#476d3c','flowers','GROW TOGETHER'],['Sunset','#f2c5a6','#8f4c46','lines','GOLDEN HOUR'],['Galaxy','#282143','#d4c0ed','stars','UNDER THE SAME SKY'],['Birthday','#f9ddad','#9a584c','stars','MAKE A WISH'],['Wedding','#fff8ee','#9b7a64','hearts','FOREVER STARTS HERE'],['Rainy Day','#dbe1ec','#506b8b','lines','RAIN OR SHINE'],['Love Letter','#f4dbe0','#a15265','postcard','WITH LOVE']]),
   ...group('Simple', [['Black','#191919','#fff','plain',''],['White','#fff','#222','plain',''],['Cream','#f5e9d1','#3b3224','plain',''],['Pink','#f4cede','#723b53','plain',''],['Blue','#cddfeb','#29475e','plain',''],['Mint','#d9e9dc','#345746','plain',''],['Slate','#69767f','#fff','plain','']]),
   ...group('Patterns', [['Gingham','#ffeded','#ae5d65','checks',''],['Daisy','#faf5db','#977833','flowers','✿'],['Hearts','#f7d9e4','#bd5579','hearts','♥'],['Dots','#ebe3d6','#78614f','dots',''],['Stars','#222b49','#e3c782','stars','★']]),
   ...group('Collage', [['Scrapbook','#dfcdb0','#715236','tape','MEMORIES'],['Notebook','#f6f3e9','#566a83','lines','DEAR DIARY'],['Newsprint','#eee9dd','#242321','news','THE GOOD TIMES'],['Gallery','#efe7df','#6d564a','tape','OUR LITTLE GALLERY']]),
