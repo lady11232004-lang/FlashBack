@@ -122,3 +122,15 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .maker-page{padding:48px 5% 70px}.maker-page h1{font:700 clamp(30px,4vw,54px)/1.1 'DM Mono';letter-spacing:-2px}.maker-page>p{max-width:650px;line-height:1.7}.maker-layout{display:grid;grid-template-columns:minmax(260px,370px) minmax(0,1fr);gap:50px;margin-top:30px}.maker-controls label{display:block;font:11px 'DM Mono';margin:18px 0}.maker-controls input,.maker-controls select{display:block;width:100%;background:#fff;border:1px solid var(--line);padding:12px;margin-top:8px;font:14px 'DM Sans'}.maker-tabs{display:flex;gap:8px}.maker-tabs button{padding:14px;border:1px solid var(--line);font:11px 'DM Mono';flex:1}.maker-tabs button[aria-pressed=true]{background:var(--ink);color:#fff}.maker-preview{padding:24px;background:#ebe6df;align-self:start;text-align:center}.maker-preview>img{max-height:650px;object-fit:contain}.maker-photos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.maker-photos img{aspect-ratio:1;object-fit:cover}.maker-photos button{font:10px 'DM Sans';padding:5px}.maker-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}.maker-actions .button{flex:1 1 140px}.maker-preview>p{padding:80px 20px;color:var(--muted)}@media(max-width:800px){.maker-layout{grid-template-columns:1fr;gap:24px}.maker-preview{padding:14px}.maker-page{padding:30px 6% 50px}.site-header{padding:0 24px}.nav-links{gap:24px}}
 
 .side-template-icon{width:48px;height:80px;flex:none;background:#eee9e1;display:grid;place-items:center}.side-template-icon img{height:76px;width:44px;object-fit:contain}.side-template-item{min-height:95px}.side-template-item>div{min-width:0}.side-template-item strong{font-size:11px}
+/* Fit the landing composition to laptop screens without oversized type or gutters. */
+body{background:var(--paper)}
+.hero{min-height:calc(100svh - 82px);padding-top:clamp(32px,5vh,64px);padding-bottom:48px;column-gap:clamp(32px,5vw,72px);align-items:center}
+.hero.section-pad{padding-left:clamp(28px,6vw,104px);padding-right:clamp(28px,6vw,104px)}
+.hero-copy{padding-top:0;min-width:0}
+.hero h1{font-size:clamp(52px,5.2vw,82px);letter-spacing:-3px;margin:26px 0 24px;line-height:1}
+.hero h1 span{font-size:clamp(58px,5.7vw,88px);line-height:1.2}
+.hero-copy p{font-size:16px;line-height:1.6;margin:0;max-width:470px}
+.hero .button-row{margin-top:28px;flex-wrap:wrap}
+.hero-image{height:clamp(300px,58vh,520px)}
+@media(max-width:900px){.hero{min-height:0;padding-top:40px;padding-bottom:60px;gap:40px}.hero-image{height:280px}.hero h1{font-size:clamp(48px,7vw,68px)}.hero h1 span{font-size:clamp(54px,8vw,76px)}}
+@media(max-width:460px){.hero.section-pad{padding-left:24px;padding-right:24px}.hero h1{font-size:48px;letter-spacing:-2px}.hero h1 span{font-size:58px}.hero-image{height:220px}}
