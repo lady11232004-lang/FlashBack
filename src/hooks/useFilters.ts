@@ -6,6 +6,19 @@ export type FilterDef = {
 };
 
 export const COLOR_FILTERS: FilterDef[] = [
+  { key: 'ANALOG_80', label: 'Analog 80', css: 'contrast(1.05) saturate(0.86) brightness(1.03) sepia(0.12)' },
+  { key: 'SUN_DISPOSABLE', label: 'Sun Disposable', css: 'saturate(1.15) contrast(1.1) brightness(1.08) sepia(0.15)' },
+  { key: 'INSTANT_SOFT', label: 'Instant Soft', css: 'contrast(0.9) brightness(1.08) saturate(0.83) sepia(0.1)' },
+  { key: 'NIGHT_CCD', label: 'Night CCD', css: 'contrast(1.18) saturate(0.88) brightness(1.06) hue-rotate(-6deg)' },
+  { key: 'MONO_GRAIN', label: 'Mono Grain', css: 'grayscale(1) contrast(1.2) brightness(1.01)' },
+  { key: 'ROSE_MILK', label: 'Rose Milk', css: 'brightness(1.06) contrast(0.94) saturate(0.86) sepia(0.08) hue-rotate(-12deg)' },
+  { key: 'SOFT_FLASH', label: 'Soft Flash', css: 'brightness(1.12) contrast(1.06) saturate(0.92)' },
+  { key: 'COOL_MATTE', label: 'Cool Matte', css: 'contrast(0.86) brightness(1.05) saturate(0.7) hue-rotate(-8deg)' },
+  { key: 'GOLDEN_HOUR', label: 'Golden Hour', css: 'sepia(0.22) saturate(1.08) brightness(1.06) contrast(0.98)' },
+  { key: 'MILK_TEA', label: 'Milk Tea', css: 'sepia(0.18) saturate(0.75) contrast(0.92) brightness(1.04)' },
+  { key: 'SILVER_MONO', label: 'Silver Mono', css: 'grayscale(1) contrast(0.96) brightness(1.07)' },
+  { key: 'CINEMA', label: 'Cinema', css: 'saturate(0.72) contrast(1.12) brightness(0.96) sepia(0.08)' },
+  { key: 'CCD_POP', label: 'CCD Pop', css: 'saturate(1.16) contrast(1.12) brightness(1.04)' },
   { key: 'ORIGINAL', label: 'Original', css: 'none' },
   { key: 'WARM', label: 'Warm', css: 'sepia(0.25) saturate(1.3) brightness(1.05)' },
   { key: 'COOL', label: 'Cool', css: 'hue-rotate(-12deg) saturate(0.92) brightness(1.02)' },
@@ -40,4 +53,4 @@ export function getFilterLabel(key: string): string {
   return FILTER_MAP[key]?.label || 'Original';
 }
 
-export function getFilterOverlay(key: string) { return key === 'GRAIN' ? applyFilmGrain : undefined; }
+export function getFilterOverlay(key: string) { return ['GRAIN','ANALOG_80','MONO_GRAIN'].includes(key) ? applyFilmGrain : undefined; }

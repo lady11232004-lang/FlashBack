@@ -37,8 +37,7 @@ test('two private browser identities capture together and recover shared photos 
     for (let shot = 1; shot <= 3; shot++) {
       interruptPhoto = shot === 2;
       await page.getByRole('button', { name: 'START SYNCED CAPTURE' }).click();
-      await expect(page.locator('.countdown-overlay')).toBeVisible({ timeout: 10000 });
-      await expect(partner.locator('.countdown-overlay')).toBeVisible({ timeout: 10000 });
+      await Promise.all([expect(page.locator('.countdown-overlay')).toBeVisible({ timeout: 10000 }), expect(partner.locator('.countdown-overlay')).toBeVisible({ timeout: 10000 })]);
       if (shot === 2) { await expect(page.getByRole('button', { name: 'RETRY PHOTO SYNC' })).toBeVisible({ timeout: 30000 }); await page.getByRole('button', { name: 'RETRY PHOTO SYNC' }).click(); }
       await expect(page.locator('.photo-column').first().locator('img')).toHaveCount(shot, { timeout: 30000 });
       await expect(partner.locator('.photo-column').first().locator('img')).toHaveCount(shot, { timeout: 30000 });

@@ -16,7 +16,7 @@ export function useCoupleSync() {
   const latestRef = useRef<CoupleSession | null>(null);
   useEffect(() => { latestRef.current = session; }, [session]);
   const applySession = useCallback((data: CoupleSession) => {
-    setSession(previous => previous?.id === data.id && Date.parse(previous.updated_at) >= Date.parse(data.updated_at) ? previous : data);
+    setSession(previous => previous?.id === data.id && (previous.updated_at === data.updated_at || Date.parse(previous.updated_at) > Date.parse(data.updated_at)) ? previous : data);
   }, []);
 
   const cleanup = useCallback(() => {
@@ -32,15 +32,16 @@ export function useCoupleSync() {
     return data as CoupleSession | null;
   }, []);
 
-  const refreshSession = useCallback(async (id: string, realtime = false) => {
+  const refreshSession = useCallback(async (id: string) => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
     try {
-      if (!realtime) {
-      const { data: stamp, error: stampError } = await requireBackend().from('couple_sessions').select('updated_at').eq('id', id).maybeSingle();
+      // Timer/readiness metadata arrives before the heavier media history.
+      const { data: stamp, error: stampError } = await requireBackend().from('couple_sessions').select('updated_at,capture_at,countdown_active,current_shot,status,host_ready,partner_ready').eq('id', id).maybeSingle();
       if (stampError) throw stampError;
-      if (!stamp || (latestRef.current?.id === id && stamp.updated_at === latestRef.current.updated_at)) return;
-      }
+      if (!stamp || (latestRef.current?.id === id && (stamp.updated_at === latestRef.current.updated_at || Date.parse(stamp.updated_at) < Date.parse(latestRef.current.updated_at)))) return;
+      const { updated_at, ...metadata } = stamp;
+      if (mountedRef.current) setSession(previous => previous?.id === id && updated_at !== previous.updated_at && Date.parse(updated_at) >= Date.parse(previous.updated_at) ? { ...previous, ...metadata } : previous);
       const fresh = await fetchSession(id);
       if (fresh && mountedRef.current) applySession(fresh);
     } catch (error) { if (mountedRef.current) setError(error instanceof Error ? error.message : 'Could not refresh shared photos.'); }
@@ -58,7 +59,7 @@ export function useCoupleSync() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'couple_sessions', filter: `id=eq.${data.id}` }, payload => {
         void payload;
         // Large media fields can be omitted from Realtime payloads. Fetch the full, RLS-protected row.
-        void refreshSession(data.id, true);
+        void refreshSession(data.id);
       }).subscribe();
   }, [refreshSession, applySession]);
 
@@ -99,7 +100,7 @@ export function useCoupleSync() {
     if (!sessionId) throw new Error('No active shared session.');
     const { data, error } = await requireBackend().from('couple_sessions').update(patch).eq('id', sessionId).select().single();
     if (error) { setError(error.message); throw error; }
-    if (mountedRef.current) applySession(data as CoupleSession);
+    if (mountedRef.current) { applySession(data as CoupleSession); setError(null); }
   }, [sessionId, applySession]);
 
   const setReady = useCallback(async (ready: boolean) => {
@@ -107,9 +108,9 @@ export function useCoupleSync() {
   }, [role, updateSession]);
   const startCountdown = useCallback(async () => {
     if (role !== 'host' || !session?.host_ready || !session.partner_ready || session.countdown_active) return;
-    const { data, error } = await requireBackend().rpc('start_couple_capture', { session_id: session.id });
+    const { data, error } = await requireBackend().rpc('schedule_couple_capture', { session_id: session.id });
     if (error) { setError(error.message); throw error; }
-    if (mountedRef.current) applySession(data as CoupleSession);
+    if (mountedRef.current) applySession({ ...session, ...data } as CoupleSession);
   }, [role, session, applySession]);
   const finishCountdown = useCallback(async () => {
     if (!session) return;
@@ -129,7 +130,7 @@ export function useCoupleSync() {
   // Realtime may reconnect after a network drop; polling also repairs missed events.
   useEffect(() => {
     if (!sessionId) return;
-    const timer = window.setInterval(() => { void refreshSession(sessionId); }, 2000);
+    const timer = window.setInterval(() => { void refreshSession(sessionId); }, 1000);
     return () => window.clearInterval(timer);
   }, [sessionId, refreshSession]);
   return { session, loading, error, role, sessionId, createSession, joinSession, loadSession, setReady, startCountdown, finishCountdown, submitPhoto, completeSession, cleanup };

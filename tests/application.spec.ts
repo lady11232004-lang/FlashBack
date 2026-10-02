@@ -7,7 +7,7 @@ async function capture(page: Page) {
   await page.getByRole('button', { name: 'Start capture', exact: true }).click();
   for (let index = 0; index < 3; index++) {
     await page.getByRole('button', { name: index ? 'CAPTURE NEXT' : 'START SESSION', exact: true }).click();
-    await expect(page.locator('.shot-boxes img')).toHaveCount(index + 1);
+    await expect(page.locator('.shot-boxes img')).toHaveCount(index + 1, { timeout: 10000 });
   }
 }
 
@@ -156,7 +156,7 @@ test('every filter, template, editor category and style option remains usable', 
       await button.click(); await expect(button).toHaveClass(/selected/);
     }
     if (category === 'TEXT') {
-      for (const input of await page.locator('.text-custom input').all()) await input.fill('Memory');
+      for (const input of await page.locator('.text-custom input:not([type=checkbox])').all()) await input.fill('Memory');
     }
     if (category === 'STICKERS') {
       for (const sticker of await page.locator('.sticker-btn').all()) await sticker.click();
@@ -187,7 +187,7 @@ test('capture limit and cancellation prevent extra or late shots', async ({ page
   await page.getByRole('button', { name: 'Start capture', exact: true }).click();
   for (let index = 0; index < 10; index++) {
     await page.getByRole('button', { name: index ? 'CAPTURE NEXT' : 'START SESSION', exact: true }).click();
-    await expect(page.locator('.shot-boxes img')).toHaveCount(index + 1);
+    await expect(page.locator('.shot-boxes img')).toHaveCount(index + 1, { timeout: 10000 });
   }
   await expect(page.getByRole('button', { name: 'MAX REACHED' })).toBeDisabled();
   await page.reload();

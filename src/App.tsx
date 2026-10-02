@@ -1,5 +1,8 @@
+import { templateSample } from '@/utils/templateSamples';
+import { Makers } from '@/components/Makers';
+import { zoomCrop } from '@/utils/cameraZoom';
 import { FramePicker, RoomPicker } from '@/components/StudioPickers';
-import { ROOMS } from '@/utils/frames';
+import { FRAME_PRESETS, ROOMS } from '@/utils/frames';
 import { drawFilteredImage } from '@/utils/canvasFilter';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -17,10 +20,10 @@ import { COLOR_FILTERS, getFilterCss, getFilterLabel, getFilterOverlay } from '@
 import {
   TEMPLATE_KEYS, TEMPLATE_LAYOUTS, STRIP_BACKGROUNDS, STRIP_BORDERS,
   STRIP_TEXTURES, TEXT_COLORS, ACCENT_COLORS, DEFAULT_CUSTOMIZATION,
-  downloadDataUrl, StripOrientation,
+  downloadDataUrl, generateStory, STRIP_FONTS, StripOrientation,
 } from '@/utils/photoStrip';
 
-type View = 'rooms' | 'home' | 'about' | 'gallery' | 'modes' | 'preview' | 'session' | 'select' | 'edit' | 'result'
+type View = 'makers' | 'rooms' | 'home' | 'about' | 'gallery' | 'modes' | 'preview' | 'session' | 'select' | 'edit' | 'result'
   | 'couple-create' | 'couple-waiting' | 'couple-join' | 'couple-session' | 'privacy' | 'terms';
 type GalleryTab = 'MY PHOTOS' | 'MY STRIPS' | 'MY VIDEOS' | 'TEMPLATES';
 
@@ -37,7 +40,7 @@ const STICKER_OPTIONS = ['\u2665', '\u2605', '\u2728', '\u2729', '\u2606', '\u26
 const SOLO_TEMPLATES = ['CLASSIC', 'MINIMAL', 'FILM', '35MM FILM', 'VINTAGE 70S', 'DATE STAMP', 'POLAROID', 'RETRO', 'EDITORIAL', 'CLEAN MODERN', 'KODAK'];
 const COUPLE_TEMPLATES = ['COUPLE', ...SOLO_TEMPLATES];
 
-const VIEWS: View[] = ['rooms', 'home', 'about', 'gallery', 'modes', 'preview', 'session', 'select', 'edit', 'result', 'couple-create', 'couple-waiting', 'couple-join', 'couple-session', 'privacy', 'terms'];
+const VIEWS: View[] = ['makers', 'rooms', 'home', 'about', 'gallery', 'modes', 'preview', 'session', 'select', 'edit', 'result', 'couple-create', 'couple-waiting', 'couple-join', 'couple-session', 'privacy', 'terms'];
 function routeView(): View {
   if (new URLSearchParams(location.search).has('join')) return 'couple-join';
   const requested = location.hash.slice(1) as View;
@@ -90,6 +93,7 @@ function App() {
     <div className="app-shell">
       <Header view={view} navigate={navigate} menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       {pb.galleryError && view !== 'gallery' && <p className="couple-error" role="alert">{pb.galleryError}</p>}
+      {view === 'makers' && <Makers notify={notify} />}
       {view === 'home' && <Home navigate={navigate} />}
       {view === 'about' && <About navigate={navigate} />}
       {view === 'gallery' && <Gallery navigate={navigate} notify={notify} />}
@@ -115,6 +119,7 @@ function Header({ view, navigate, menuOpen, setMenuOpen }: { view: View; navigat
   return <header className="site-header">
     <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Camera size={17} /></span> FLASHBACK</button>
     <nav className={menuOpen ? 'nav-links open' : 'nav-links'}>
+      <button className={view === 'makers' ? 'active' : ''} onClick={() => navigate('makers')}>CREATE</button>
       <button className={view === 'about' ? 'active' : ''} onClick={() => navigate('about')}>ABOUT</button>
       <button className={view === 'gallery' ? 'active' : ''} onClick={() => navigate('gallery')}>GALLERY</button>
       <button className={view === 'modes' ? 'active' : ''} onClick={() => navigate('modes')}>BOOK</button>
@@ -237,8 +242,11 @@ function SideToolsPanel({ filterKey, onPickFilter, template, onPickTemplate, tem
 }) {
   const pb = usePhotobooth();
   const [framesOpen, setFramesOpen] = useState(false);
+  const [sampleImages, setSampleImages] = useState<Record<string,string>>({});
+  const templateKeys=templates.join('|');
+  useEffect(()=>{let cancelled=false;void Promise.all(templateKeys.split('|').map(async key=>[key,await templateSample(key)] as const)).then(entries=>{if(!cancelled)setSampleImages(Object.fromEntries(entries));});return()=>{cancelled=true;};},[templateKeys]);
   return <div className="side-tools-panel">
-    <details onToggle={event => setFramesOpen(event.currentTarget.open)}><summary>THEMES &amp; FRAMES</summary>{framesOpen && <FramePicker value={pb.customization.frameId || ''} onChange={frameId => pb.setCustomization({ frameId })} />}</details>
+    <details onToggle={event => setFramesOpen(event.currentTarget.open)}><summary>THEMES &amp; FRAMES</summary>{framesOpen && <FramePicker value={pb.customization.frameId || ''} onChange={frameId => pb.setCustomization({ frameId, ...(FRAME_PRESETS.find(frame => frame.id === frameId)?.category === 'Portrait' ? { template: 'EDITORIAL' } : {}) })} />}</details>
     <div className="side-tools-section">
       <h3>FILTERS</h3>
       <div className="side-filter-list">
@@ -257,7 +265,7 @@ function SideToolsPanel({ filterKey, onPickFilter, template, onPickTemplate, tem
           const def = TEMPLATE_LAYOUTS[key];
           return (
             <button key={key} className={template === key ? 'side-template-item selected' : 'side-template-item'} onClick={() => onPickTemplate(key)}>
-              <span className="side-template-icon"><Layout size={16} /></span>
+              <span className="side-template-icon">{sampleImages[key] ? <img src={sampleImages[key]} alt={`${def?.label || key} sample illustration`} /> : <Layout size={16} />}</span>
               <div>
                 <strong>{def?.label || key}</strong>
                 <small>{def?.slots} frame{def && def.slots > 1 ? 's' : ''} - {def?.layout}</small>
@@ -278,16 +286,20 @@ function Rooms({ navigate }: { navigate: (view: View) => void }) {
 
 /* ============ CAMERA VIEW ============ */
 
-function CameraView({ filterKey, videoRef, facingMode, flash, countdown, error, ready, onRetry }: {
+function CameraView({ filterKey, videoRef, facingMode, flash, countdown, countdownLabel, error, ready, onRetry }: {
   filterKey: string; videoRef: React.RefObject<HTMLVideoElement>; facingMode: 'user' | 'environment';
-  flash: boolean; countdown: number; error: string | null; ready: boolean; onRetry: () => void;
+  flash: boolean; countdown: number; countdownLabel?: string; error: string | null; ready: boolean; onRetry: () => void;
 }) {
   const filterCss = getFilterCss(filterKey);
+  const pb = usePhotobooth();
+  const [grid, setGrid] = useState(false);
   return <div className="camera-feed-container">
-    <video ref={videoRef} autoPlay playsInline muted className={`camera-feed ${facingMode === 'user' ? 'mirror' : ''}`} style={{ filter: filterCss }} />
-    {filterKey === 'GRAIN' && <div className="grain-overlay" aria-hidden="true" />}
+    <video ref={videoRef} autoPlay playsInline muted className={`camera-feed ${facingMode === 'user' ? 'mirror' : ''}`} style={{ filter: filterCss, transform: `${facingMode === 'user' ? 'scaleX(-1)' : ''} scale(${pb.zoom})` }} />
+    {grid && <div className="camera-grid" aria-hidden="true" />}
+    <div className="camera-zoom"><button aria-label="Zoom out" disabled={countdown > 0 || pb.isCapturing || pb.zoom <= 1} onClick={() => pb.setZoom(Math.max(1, +(pb.zoom - .1).toFixed(1)))}>−</button><input aria-label="Camera zoom" type="range" min="1" max="3" step="0.1" value={pb.zoom} disabled={countdown > 0 || pb.isCapturing} onChange={event => pb.setZoom(Number(event.target.value))} /><output>{pb.zoom.toFixed(1)}×</output><button aria-label="Zoom in" disabled={countdown > 0 || pb.isCapturing || pb.zoom >= 3} onClick={() => pb.setZoom(Math.min(3, +(pb.zoom + .1).toFixed(1)))}>+</button><button aria-label="Composition grid" aria-pressed={grid} onClick={() => setGrid(!grid)}>GRID</button></div>
+    {filterKey === 'GRAIN'  && <div className="grain-overlay" aria-hidden="true" />}
     {flash && <div className="capture-flash" />}
-    {countdown > 0 && <div className="countdown-overlay">{countdown}</div>}
+    {countdown > 0 && <div className="countdown-overlay">{countdownLabel || countdown}</div>}
     {error && <div className="camera-error"><Camera size={32} /><p>{error}</p><button className="button dark" onClick={onRetry}>RETRY</button></div>}
     {!ready && !error && <div className="camera-loading"><Loader2 className="spin" size={28} /><p>Requesting camera access...</p></div>}
   </div>;
@@ -638,7 +650,8 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
   const pendingPhoto = useRef<{ photo: string; shot: number } | null>(null);
   const [showTools, setShowTools] = useState(true);
   const [starting, setStarting] = useState(false);
-  const { startCamera, reattach, ready, videoRef, facingMode, filterKey, replaceShots, setPartnerPhotos, setCustomization, setTotalShots, setCountdownDuration } = pb;
+  const [preparingTimer, setPreparingTimer] = useState(false);
+  const { startCamera, reattach, ready, videoRef, facingMode, filterKey, zoom, replaceShots, setPartnerPhotos, setCustomization, setTotalShots, setCountdownDuration } = pb;
   const { session, sessionId, loadSession, cleanup, setReady, role, submitPhoto, finishCountdown } = sync;
   const isHost = role === 'host';
   const bothReady = session?.host_ready && session?.partner_ready;
@@ -674,17 +687,19 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
     handledShot.current = currentShot;
     let cancelled = false;
     const deadline = new Date(captureAt).getTime();
-    setLocalCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
-    const tick = window.setInterval(() => setLocalCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))), 100);
+    const duration = session?.countdown_seconds || 3;
+    const updateTimer = () => { const remaining=Math.max(0, Math.ceil((deadline-Date.now())/1000)); setPreparingTimer(remaining>duration);setLocalCountdown(Math.min(duration,remaining)); };
+    updateTimer();
+    const tick = window.setInterval(updateTimer, 100);
     const timer = window.setTimeout(() => {
       window.clearInterval(tick); setLocalCountdown(0);
       if (cancelled) return;
-      const photo = videoRef.current ? captureFromVideo(videoRef.current, facingMode, getFilterCss(filterKey), getFilterOverlay(filterKey)) : null;
+      const photo = videoRef.current ? captureFromVideo(videoRef.current, facingMode, getFilterCss(filterKey), getFilterOverlay(filterKey), zoom) : null;
       if (photo) { pendingPhoto.current = { photo, shot: currentShot }; setUploading(true); setUploadError(''); void submitRef.current(photo, currentShot).then(() => { pendingPhoto.current = null; }).catch(error => { setUploadError('Photo could not sync. Retry without taking another photo.'); notify(error.message); }).finally(() => setUploading(false)); }
       else { notify('Camera frame unavailable. Reconnect your camera.'); }
     }, Math.max(0, deadline - Date.now()));
     return () => { cancelled = true; window.clearInterval(tick); window.clearTimeout(timer); handledShot.current = -1; };
-  }, [captureAt, currentShot, ready, ownShotSaved, videoRef, facingMode, filterKey, notify]);
+  }, [captureAt, currentShot, ready, ownShotSaved, session?.countdown_seconds, videoRef, facingMode, filterKey, zoom, notify]);
 
   useEffect(() => {
     if (isHost && session?.countdown_active && session.host_photos[currentShot] && session.partner_photos[currentShot] && finishingShot.current !== currentShot) {
@@ -737,7 +752,7 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
       </aside>
       <div className="session-camera couple-session-camera" data-room={pb.customization.room || 'classic'}>
         <div className="camera-feed-container session-feed">
-          <CameraView filterKey={pb.filterKey} videoRef={pb.videoRef} facingMode={pb.facingMode} flash={pb.flash} countdown={localCountdown} error={pb.error} ready={pb.ready} onRetry={() => pb.startCamera()} />
+          <CameraView filterKey={pb.filterKey} videoRef={pb.videoRef} facingMode={pb.facingMode} flash={pb.flash} countdown={starting ? session?.countdown_seconds || 3 : localCountdown} countdownLabel={starting || preparingTimer ? 'SYNCING…' : undefined} error={pb.error} ready={pb.ready} onRetry={() => pb.startCamera()} />
         </div>
         <div className="couple-photos-preview">
           <div className="photo-column"><small>YOU</small>{myPhotos.map((p, i) => <img key={i} src={p} alt={`My shot ${i + 1}`} />)}</div>
@@ -754,17 +769,20 @@ function CoupleSession({ navigate, notify, onComplete }: { navigate: (view: View
   </main>;
 }
 
-function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environment', filterCss: string, overlay?: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): string | null {
+function captureFromVideo(video: HTMLVideoElement, facingMode: 'user' | 'environment', filterCss: string, overlay?: (ctx: CanvasRenderingContext2D, w: number, h: number) => void, zoom = 1): string | null {
   if (!video.videoWidth || !video.videoHeight) return null;
   const canvas = document.createElement('canvas');
-  const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
-  canvas.width = Math.round(video.videoWidth * scale);
-  canvas.height = Math.round(video.videoHeight * scale);
+  const ratio = video.clientWidth / video.clientHeight || video.videoWidth / video.videoHeight;
+  const base = zoomCrop(video.videoWidth,video.videoHeight,1,ratio);
+  const scale = Math.min(1, 1280 / Math.max(base.w, base.h));
+  canvas.width = Math.round(base.w * scale);
+  canvas.height = Math.round(base.h * scale);
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   ctx.save();
   if (facingMode === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
-  drawFilteredImage(ctx, video, filterCss, 0, 0, video.videoWidth, video.videoHeight, 0, 0, canvas.width, canvas.height);
+  const crop=zoomCrop(video.videoWidth,video.videoHeight,zoom,ratio);
+  drawFilteredImage(ctx, video, filterCss, crop.x, crop.y, crop.w, crop.h, 0, 0, canvas.width, canvas.height);
   ctx.restore();
   overlay?.(ctx, canvas.width, canvas.height);
   return canvas.toDataURL('image/jpeg', 0.82);
@@ -811,7 +829,7 @@ function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (m
           {(['FRAME', 'TEMPLATE', 'ORIENTATION', 'BACKGROUND', 'BORDER', 'TEXT', 'STICKERS'] as const).map(t => <button key={t} className={editTab === t ? 'selected' : ''} onClick={() => setEditTab(t)}>{t}</button>)}
         </div>
 
-        {editTab === 'FRAME' && <FramePicker value={pb.customization.frameId || ''} onChange={frameId => updateCustom({ frameId })} />}
+        {editTab === 'FRAME' && <FramePicker value={pb.customization.frameId || ''} onChange={frameId => updateCustom({ frameId, ...(FRAME_PRESETS.find(frame => frame.id === frameId)?.category === 'Portrait' ? { template: 'EDITORIAL' } : {}) })} />}
         {editTab === 'TEMPLATE' && <div className="edit-section">
           {templates.map(item => {
             const def = TEMPLATE_LAYOUTS[item];
@@ -870,6 +888,10 @@ function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (m
         </div>}
 
         {editTab === 'TEXT' && <div className="edit-section text-custom">
+          <label className="optional-text"><input type="checkbox" checked={Boolean(pb.customization.showText)} onChange={event => updateCustom({ showText: event.target.checked })} /> ADD TEXT TO MY STRIP</label>
+          <label className="optional-text"><input type="checkbox" checked={Boolean(pb.customization.showThemeLabels)} onChange={event => updateCustom({ showThemeLabels: event.target.checked })} /> INCLUDE FRAME LABELS</label>
+          <p className="frame-help">Text is optional. Leave individual fields blank to omit them. Theme labels follow this switch.</p>
+          <label>FONT<select aria-label="Caption font" value={pb.customization.fontFamily || 'Serif'} onChange={event => updateCustom({ fontFamily: event.target.value })}>{Object.keys(STRIP_FONTS).map(font => <option value={font} key={font}>{font}</option>)}</select></label>
           <label>TITLE<small>Strip header text</small><input value={pb.customization.titleText} onChange={e => updateCustom({ titleText: e.target.value })} placeholder="FLASHBACK STUDIO" maxLength={30} /></label>
           <label>NAMES<small>Couple or person names</small><input value={pb.customization.namesText} onChange={e => updateCustom({ namesText: e.target.value })} placeholder={pb.mode === 'DOUBLE' ? 'MIA \u2665 ALEX' : 'YOUR NAME'} maxLength={40} /></label>
           <label>LOCATION<small>City or cities</small><input value={pb.customization.locationText} onChange={e => updateCustom({ locationText: e.target.value })} placeholder={pb.mode === 'DOUBLE' ? 'MANILA \u00d7 TOKYO' : 'YOUR CITY'} maxLength={40} /></label>
@@ -912,7 +934,6 @@ function Edit({ navigate, notify }: { navigate: (view: View) => void; notify: (m
         <div className="photo-strip">
           {pb.stripLoading && <div className="strip-loading"><Loader2 className="spin" size={22} /></div>}
           {pb.stripDataUrl && <img src={pb.stripDataUrl} alt="Your photo strip" />}
-          <small>{pb.customization.titleText || 'FLASHBACK STUDIO'}<br />{pb.customization.namesText && <>{pb.customization.namesText}<br /></>}{pb.customization.locationText && <>{pb.customization.locationText}<br /></>}{pb.customization.dateText || new Date().toLocaleDateString('en-US')}</small>
         </div>
         <p className="edit-hint">Preview fitted to your screen. Downloads retain the full image size.</p>
       </div>
@@ -999,10 +1020,10 @@ function Result({ navigate, notify }: { navigate: (view: View) => void; notify: 
       <div className="final-strip">
         <Script text="absolutely stunning!" />
         <img src={stripImage} alt="Finished photo strip" />
-        <small>{pb.customization.titleText || 'FLASHBACK STUDIO'}<br />{pb.customization.namesText && <>{pb.customization.namesText}<br /></>}{pb.customization.locationText}<br />{pb.customization.dateText || new Date().toLocaleDateString('en-US')}</small>
         <div className="result-item-actions">
           <button className="button dark" onClick={handleDownloadStrip}><Download size={15} /> DOWNLOAD</button>
           <button className={isSavedStrip ? 'button light saved' : 'button light'} onClick={handleSaveStrip} disabled={isSavedStrip || saving || !pb.stripDataUrl}>{isSavedStrip ? <><Check size={15} /> SAVED</> : <><Heart size={15} /> SAVE</>}</button>
+          <button className="button light" disabled={!pb.stripDataUrl} onClick={async () => { try { const story=await generateStory(pb.stripDataUrl); downloadDataUrl(story, 'flashback-story.jpg'); } catch (error) { notify(error instanceof Error ? error.message : 'Could not export story'); } }}><Download size={15} /> STORY 9:16</button>
           <button className="button light" onClick={handleShare}><Share2 size={15} /> SHARE</button>
         </div>
       </div>

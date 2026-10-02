@@ -1,3 +1,4 @@
+import { zoomCrop } from '@/utils/cameraZoom';
 import { drawFilteredImage } from '@/utils/canvasFilter';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -9,6 +10,7 @@ export function useCamera() {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
 
   const start = useCallback(async (mode?: 'user' | 'environment') => {
@@ -38,9 +40,11 @@ export function useCamera() {
       }
       streamRef.current = mediaStream;
       setStream(mediaStream);
-      setReady(true);
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+        const video = videoRef.current;
+        video.addEventListener('loadeddata', () => { if (activeRef.current && request === requestRef.current) setReady(true); }, { once: true });
+        video.srcObject = mediaStream;
+        void video.play().catch(() => setError('Tap reconnect to resume your camera.'));
       }
     } catch (e: unknown) {
       if (request !== requestRef.current) return;
@@ -92,10 +96,12 @@ export function useCamera() {
   const captureWithFilter = useCallback(
     (filterCss: string, overlayFn?: ((ctx: CanvasRenderingContext2D, w: number, h: number) => void)): string | null => {
       const video = videoRef.current;
-      if (!video || !video.videoWidth) return null;
+      if (!video || !video.videoWidth || video.readyState < 2) { setError('Camera frame unavailable. Reconnect your camera and retry.'); return null; }
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const ratio = video.clientWidth / video.clientHeight || video.videoWidth / video.videoHeight;
+      const base = zoomCrop(video.videoWidth, video.videoHeight, 1, ratio);
+      canvas.width = Math.round(base.w);
+      canvas.height = Math.round(base.h);
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
 
@@ -104,7 +110,8 @@ export function useCamera() {
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
       }
-      drawFilteredImage(ctx, video, filterCss, 0, 0, video.videoWidth, video.videoHeight, 0, 0, canvas.width, canvas.height);
+      const crop = zoomCrop(video.videoWidth, video.videoHeight, zoom, ratio);
+      drawFilteredImage(ctx, video, filterCss, crop.x, crop.y, crop.w, crop.h, 0, 0, canvas.width, canvas.height);
       ctx.restore();
 
       if (overlayFn) {
@@ -117,19 +124,22 @@ export function useCamera() {
 
       return canvas.toDataURL('image/jpeg', 0.92);
     },
-    [facingMode],
+    [facingMode, zoom],
   );
 
   const reattach = useCallback(() => {
     if (videoRef.current && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
+      if (videoRef.current.srcObject !== streamRef.current) videoRef.current.srcObject = streamRef.current;
       videoRef.current.play().catch(() => {});
     }
   }, []);
 
   useEffect(() => {
     if (stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
+      const video = videoRef.current;
+      if (video.srcObject !== stream) video.srcObject = stream;
+      if (video.readyState >= 2) setReady(true);
+      else video.addEventListener('loadeddata', () => { if (activeRef.current && streamRef.current === stream) setReady(true); }, { once: true });
       videoRef.current.play().catch(() => {});
     }
   }, [stream]);
@@ -145,5 +155,5 @@ export function useCamera() {
     [],
   );
 
-  return { videoRef, stream, ready, error, facingMode, start, stop, switchCamera, capture, captureWithFilter, reattach };
+  return { zoom, setZoom, videoRef, stream, ready, error, facingMode, start, stop, switchCamera, capture, captureWithFilter, reattach };
 }

@@ -23,11 +23,11 @@ try {
   assert.ok((await partner.from('couple_sessions').update({ room_key: 'karaoke' }).eq('id', row.id)).error, 'Shared room must not change after creation');
   assert.ok((await stranger.rpc('join_couple_session', { session_id: row.id, label: 'Third participant' })).error, 'An invite must admit only one partner');
   assert.ok((await partner.from('couple_sessions').update({ host_ready: true }).eq('id', row.id)).error, 'Partner must not change host fields');
-  assert.ok((await partner.rpc('start_couple_capture', { session_id: row.id })).error, 'Partner must not control capture');
-  assert.ok((await host.rpc('start_couple_capture', { session_id: row.id })).error, 'Both cameras must be ready');
+  assert.ok((await partner.rpc('schedule_couple_capture', { session_id: row.id })).error, 'Partner must not control capture');
+  assert.ok((await host.rpc('schedule_couple_capture', { session_id: row.id })).error, 'Both cameras must be ready');
   check(await host.from('couple_sessions').update({ host_ready: true }).eq('id', row.id));
   check(await partner.from('couple_sessions').update({ partner_ready: true }).eq('id', row.id));
-  const capturing = check(await host.rpc('start_couple_capture', { session_id: row.id }));
+  const capturing = check(await host.rpc('schedule_couple_capture', { session_id: row.id }));
   assert.equal(capturing.countdown_active, true);
   assert.ok(Date.parse(capturing.capture_at));
   check(await host.from('couple_sessions').update({ host_photos: ['data:image/jpeg;base64,dGVzdA=='] }).eq('id', row.id));

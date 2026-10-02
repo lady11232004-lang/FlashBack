@@ -32,6 +32,8 @@ type PhotoboothState = {
   switchCamera: () => void;
   reattach: () => void;
   facingMode: 'user' | 'environment';
+  zoom: number;
+  setZoom: (value: number) => void;
   // capture
   countdown: number;
   isCapturing: boolean;
@@ -93,7 +95,7 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
     switchCamera,
     captureWithFilter,
     reattach,
-    facingMode,
+    facingMode, zoom, setZoom,
   } = useCamera();
 
   const [mode, setMode] = useState<PhotoboothMode>('SOLO');
@@ -325,7 +327,7 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
     filterKey, setFilterKey,
     videoRef, ready, error,
     startCamera, stopCamera, switchCamera, reattach,
-    facingMode,
+    facingMode, zoom, setZoom,
     countdown, isCapturing, flash,
     capturedShots, selectedShots,
     retakeShot, selectShot, deselectShot, toggleShot, setSelectedShotsBulk,

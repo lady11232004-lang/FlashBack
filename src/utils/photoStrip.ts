@@ -128,7 +128,11 @@ export type StripSticker = {
 
 export type StripOrientation = 'portrait' | 'landscape';
 
+export const STRIP_FONTS: Record<string,string> = { Sans: 'Arial, sans-serif', Serif: 'Georgia, serif', Mono: 'Courier New, monospace', Script: 'Apple Chancery, cursive', Handwritten: 'Comic Sans MS, cursive' };
 export type StripCustomization = {
+  showText?: boolean;
+  showThemeLabels?: boolean;
+  fontFamily?: string;
   template: string;
   frameId?: string;
   room?: string;
@@ -157,7 +161,10 @@ export const DEFAULT_CUSTOMIZATION: StripCustomization = {
   border: 'NONE',
   textColor: 'AUTO',
   accentColor: 'NONE',
-  titleText: 'FLASHBACK STUDIO',
+  showText: false,
+  showThemeLabels: false,
+  fontFamily: 'Serif',
+  titleText: '',
   subtitleText: '',
   namesText: '',
   locationText: '',
@@ -277,12 +284,12 @@ export async function generatePhotoStrip(
   const PORTRAIT_WIDTH = isCouple ? 680 : (isSingle ? 520 : 440);
   const LANDSCAPE_WIDTH = isSingle ? 720 : (isGrid ? 720 : 680);
   const STRIP_WIDTH = isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH;
-  const PAD = isPolaroid ? 28 : 22;
-  const POLAROID_BOTTOM = isPolaroid ? 60 : 0;
-  const GAP = customization.template === 'MINIMAL' ? 18 : 8;
-  const FOOTER = 112;
-  const innerWidth = STRIP_WIDTH - PAD * 2;
   const frame = FRAME_PRESETS.find(frame => frame.id === customization.frameId);
+  const PAD = frame && ['Signature','Portrait'].includes(frame.category) ? 48 : isPolaroid ? 28 : 22;
+  const POLAROID_BOTTOM = isPolaroid ? 60 : 0;
+  const GAP = frame && ['Signature','Portrait'].includes(frame.category) ? 16 : customization.template === 'MINIMAL' ? 18 : 8;
+  const FOOTER = customization.showText ? 112 : 28;
+  const innerWidth = STRIP_WIDTH - PAD * 2;
   const bg = frame?.color || STRIP_BACKGROUNDS[customization.background] || '#fafaf7';
   const filterCss = TEMPLATE_FILTERS[customization.template] || 'none';
 
@@ -346,7 +353,7 @@ export async function generatePhotoStrip(
   // Fill background
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, STRIP_WIDTH, totalHeight);
-  drawFrameDecoration(ctx, customization.frameId, STRIP_WIDTH, totalHeight, PAD);
+  drawFrameDecoration(ctx, customization.frameId, STRIP_WIDTH, totalHeight, PAD, Boolean(customization.showText && customization.showThemeLabels), STRIP_FONTS[customization.fontFamily || 'Serif'] || STRIP_FONTS.Serif);
 
   // Draw photos with filter
   for (const pos of positions) {
@@ -403,10 +410,11 @@ export async function generatePhotoStrip(
   const footerY = lastPos.y + lastPos.h + (isPolaroid ? POLAROID_BOTTOM : 0) + 16;
 
   ctx.textAlign = 'center';
-
+  const font = STRIP_FONTS[customization.fontFamily || 'Serif'] || STRIP_FONTS.Serif;
+  if (customization.showText) {
   if (customization.titleText) {
     ctx.fillStyle = textColor;
-    ctx.font = 'bold 13px monospace';
+    ctx.font = `bold 13px ${font}`;
     ctx.fillText(customization.titleText, STRIP_WIDTH / 2, footerY, innerWidth);
   }
 
@@ -414,23 +422,23 @@ export async function generatePhotoStrip(
 
   if (accent) {
     ctx.fillStyle = accent;
-    ctx.font = '10px monospace';
+    ctx.font = `10px ${font}`;
     ctx.fillText('\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014', STRIP_WIDTH / 2, lineY);
     lineY += 12;
   }
 
-  ctx.font = '10px monospace';
+  ctx.font = `10px ${font}`;
   if (customization.namesText) {
     ctx.fillStyle = textColor;
-    ctx.font = 'bold 12px monospace';
+    ctx.font = `bold 12px ${font}`;
     ctx.fillText(customization.namesText, STRIP_WIDTH / 2, lineY, innerWidth);
     lineY += 16;
   }
 
-  ctx.font = '10px monospace';
+  ctx.font = `10px ${font}`;
   const metaParts: string[] = [];
   if (customization.locationText) metaParts.push(customization.locationText);
-  const dateStr = customization.dateText || new Date().toLocaleDateString('en-US');
+  const dateStr = customization.dateText;
   if (dateStr) metaParts.push(dateStr);
   if (metaParts.length > 0) {
     ctx.fillStyle = textColor;
@@ -440,12 +448,14 @@ export async function generatePhotoStrip(
 
   if (customization.messageText) {
     ctx.fillStyle = textColor;
-    ctx.font = 'italic 11px sans-serif';
+    ctx.font = `italic 11px ${font}`;
     ctx.fillText(customization.messageText, STRIP_WIDTH / 2, lineY, innerWidth);
     lineY += 14;
   }
 
-  if (frame?.mark) { ctx.fillStyle = textColor; ctx.font = 'bold 10px monospace'; ctx.fillText(frame.mark, STRIP_WIDTH / 2, totalHeight - 18, innerWidth); }
+  if (frame?.mark && customization.showThemeLabels) { ctx.fillStyle = textColor; ctx.font = `bold 10px ${font}`; ctx.fillText(frame.mark, STRIP_WIDTH / 2, totalHeight - 18, innerWidth); }
+
+  }
 
   // Stickers
   if (customization.stickers.length > 0) {
@@ -475,8 +485,8 @@ export async function generatePhotoStrip(
 export async function generateCoupleStrip(
   hostPhotos: string[],
   partnerPhotos: string[],
-  hostLabel: string,
-  partnerLabel: string,
+  _hostLabel: string,
+  _partnerLabel: string,
   customization: StripCustomization,
 ): Promise<string> {
   const allPhotos: string[] = [];
@@ -488,10 +498,10 @@ export async function generateCoupleStrip(
   const coupleCustom: StripCustomization = {
     ...customization,
     layout: customization.template === 'COUPLE' ? 'sidebyside' : customization.layout,
-    titleText: customization.titleText || 'FLASHBACK STUDIO',
-    namesText: customization.namesText || `${hostLabel} \u2665 ${partnerLabel}`,
-    locationText: customization.locationText || `${hostLabel.split(' / ')[1] || hostLabel} \u00d7 ${partnerLabel.split(' / ')[1] || partnerLabel}`,
-    messageText: customization.messageText || 'same booth, different places.',
+    titleText: customization.titleText,
+    namesText: customization.namesText,
+    locationText: customization.locationText,
+    messageText: customization.messageText,
   };
   return generatePhotoStrip(allPhotos, coupleCustom);
 }
@@ -503,4 +513,13 @@ export function downloadDataUrl(dataUrl: string, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+/** Contain the full strip inside a standard story canvas; never crop a face or decoration. */
+export async function generateStory(dataUrl: string, background = '#f3eee6'): Promise<string> {
+  const img = await loadImage(dataUrl); const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;
+  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Image export is unavailable.');
+  ctx.fillStyle=background;ctx.fillRect(0,0,1080,1920);
+  const scale=Math.min(940/img.width,1740/img.height),width=img.width*scale,height=img.height*scale;
+  ctx.drawImage(img,(1080-width)/2,(1920-height)/2,width,height);return canvas.toDataURL('image/jpeg',.95);
 }
