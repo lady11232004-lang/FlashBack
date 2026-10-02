@@ -174,7 +174,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function getLayoutPhotos(photos: string[], layout: string, maxSlots: number): string[] {
+function getLayoutPhotos(photos: string[], maxSlots: number): string[] {
   const p = photos.slice(0, maxSlots);
   if (p.length === 0) return [];
   return p;
@@ -256,11 +256,11 @@ export async function generatePhotoStrip(
 ): Promise<string> {
   const layoutDef = TEMPLATE_LAYOUTS[customization.template] || TEMPLATE_LAYOUTS.CLASSIC;
   const maxSlots = layoutDef.slots;
-  const usePhotos = getLayoutPhotos(photos, layoutDef.layout, maxSlots);
+  const layout = customization.layout || layoutDef.layout;
+  const usePhotos = getLayoutPhotos(photos, layout === 'single' ? 1 : Math.max(maxSlots, photos.length));
   if (usePhotos.length === 0) return '';
   const imgs = await Promise.all(usePhotos.map(loadImage));
 
-  const layout = layoutDef.layout;
   const isCouple = layout === 'sidebyside';
   const isPolaroid = layout === 'polaroid';
   const isSingle = layout === 'single';
@@ -274,14 +274,13 @@ export async function generatePhotoStrip(
   const PAD = isPolaroid ? 28 : 22;
   const POLAROID_BOTTOM = isPolaroid ? 60 : 0;
   const GAP = 8;
-  const FOOTER = 80;
+  const FOOTER = 112;
   const innerWidth = STRIP_WIDTH - PAD * 2;
   const bg = STRIP_BACKGROUNDS[customization.background] || '#fafaf7';
   const filterCss = TEMPLATE_FILTERS[customization.template] || 'none';
 
   // Photo aspect ratio changes with orientation
   // Portrait: 3:4 (taller), Landscape: 4:3 (wider)
-  const photoAspect = isLandscape ? 4 / 3 : 3 / 4;
 
   let positions: { x: number; y: number; w: number; h: number; img: HTMLImageElement }[];
   let totalHeight: number;
@@ -293,17 +292,18 @@ export async function generatePhotoStrip(
       : Math.round(innerWidth * 1.25);
     positions = [{ x: PAD, y: PAD, w: innerWidth, h: photoHeight, img: imgs[0] }];
     totalHeight = PAD + photoHeight + FOOTER + PAD;
-  } else if (isGrid && imgs.length >= 4) {
+  } else if (isGrid) {
     const cellW = (innerWidth - GAP) / 2;
     const cellH = isLandscape ? Math.round(cellW * 0.65) : Math.round(cellW * 0.75);
-    positions = imgs.slice(0, 4).map((img, i) => ({
+    positions = imgs.map((img, i) => ({
       x: PAD + (i % 2) * (cellW + GAP),
       y: PAD + Math.floor(i / 2) * (cellH + GAP),
       w: cellW,
       h: cellH,
       img,
     }));
-    totalHeight = PAD + 2 * cellH + GAP + FOOTER + PAD;
+    const rows = Math.ceil(imgs.length / 2);
+    totalHeight = PAD + rows * cellH + (rows - 1) * GAP + FOOTER + PAD;
   } else if (isCouple) {
     const halfW = (innerWidth - GAP) / 2;
     const cellH = isLandscape ? Math.round(halfW * 0.65) : Math.round(halfW * 0.75);
@@ -315,30 +315,18 @@ export async function generatePhotoStrip(
     }
     const rows = Math.ceil(imgs.length / 2);
     totalHeight = PAD + rows * cellH + (rows - 1) * GAP + FOOTER + PAD;
+  } else if (isLandscape) {
+    const photoWidth = (innerWidth - (imgs.length - 1) * GAP) / imgs.length;
+    const photoHeight = Math.round(photoWidth * 0.75);
+    positions = imgs.map((img, i) => ({ x: PAD + i * (photoWidth + GAP), y: PAD, w: photoWidth, h: photoHeight, img }));
+    totalHeight = PAD + photoHeight + (isPolaroid ? POLAROID_BOTTOM : 0) + FOOTER + PAD;
   } else if (isPolaroid) {
-    const photoHeight = isLandscape
-      ? Math.round(innerWidth * 0.6)
-      : Math.round(innerWidth * 0.8);
-    positions = imgs.map((img, i) => ({
-      x: PAD,
-      y: PAD + i * (photoHeight + POLAROID_BOTTOM + GAP),
-      w: innerWidth,
-      h: photoHeight,
-      img,
-    }));
+    const photoHeight = Math.round(innerWidth * 0.8);
+    positions = imgs.map((img, i) => ({ x: PAD, y: PAD + i * (photoHeight + POLAROID_BOTTOM + GAP), w: innerWidth, h: photoHeight, img }));
     totalHeight = PAD + imgs.length * (photoHeight + POLAROID_BOTTOM) + (imgs.length - 1) * GAP + FOOTER + PAD;
   } else {
-    // Vertical strip - in landscape mode, photos are wider/shorter
-    const photoHeight = isLandscape
-      ? Math.round(innerWidth * 0.6)
-      : Math.round(innerWidth * 0.75);
-    positions = imgs.map((img, i) => ({
-      x: PAD,
-      y: PAD + i * (photoHeight + GAP),
-      w: innerWidth,
-      h: photoHeight,
-      img,
-    }));
+    const photoHeight = Math.round(innerWidth * 0.75);
+    positions = imgs.map((img, i) => ({ x: PAD, y: PAD + i * (photoHeight + GAP), w: innerWidth, h: photoHeight, img }));
     totalHeight = PAD + imgs.length * photoHeight + (imgs.length - 1) * GAP + FOOTER + PAD;
   }
 
@@ -411,7 +399,7 @@ export async function generatePhotoStrip(
   if (customization.titleText) {
     ctx.fillStyle = textColor;
     ctx.font = 'bold 13px monospace';
-    ctx.fillText(customization.titleText, STRIP_WIDTH / 2, footerY);
+    ctx.fillText(customization.titleText, STRIP_WIDTH / 2, footerY, innerWidth);
   }
 
   let lineY = footerY + 16;
@@ -427,7 +415,7 @@ export async function generatePhotoStrip(
   if (customization.namesText) {
     ctx.fillStyle = textColor;
     ctx.font = 'bold 12px monospace';
-    ctx.fillText(customization.namesText, STRIP_WIDTH / 2, lineY);
+    ctx.fillText(customization.namesText, STRIP_WIDTH / 2, lineY, innerWidth);
     lineY += 16;
   }
 
@@ -438,14 +426,14 @@ export async function generatePhotoStrip(
   if (dateStr) metaParts.push(dateStr);
   if (metaParts.length > 0) {
     ctx.fillStyle = textColor;
-    ctx.fillText(metaParts.join('  /  '), STRIP_WIDTH / 2, lineY);
+    ctx.fillText(metaParts.join('  /  '), STRIP_WIDTH / 2, lineY, innerWidth);
     lineY += 14;
   }
 
   if (customization.messageText) {
     ctx.fillStyle = textColor;
     ctx.font = 'italic 11px sans-serif';
-    ctx.fillText(customization.messageText, STRIP_WIDTH / 2, lineY);
+    ctx.fillText(customization.messageText, STRIP_WIDTH / 2, lineY, innerWidth);
     lineY += 14;
   }
 
@@ -458,6 +446,19 @@ export async function generatePhotoStrip(
     }
   }
 
+  // Render the chosen border into the exported image, not just the preview.
+  const border = STRIP_BORDERS[customization.border];
+  if (border && border !== 'none') {
+    const match = border.match(/(\d+)px \w+ (#[\da-f]+)/i);
+    if (match) {
+      const width = Number(match[1]); ctx.strokeStyle = match[2]; ctx.lineWidth = width;
+      if (customization.border === 'DASHED') ctx.setLineDash([width * 4, width * 3]);
+      if (customization.border === 'DOTTED') ctx.setLineDash([width, width * 2]);
+      ctx.strokeRect(width / 2, width / 2, STRIP_WIDTH - width, totalHeight - width);
+      if (customization.border === 'DOUBLE') ctx.strokeRect(width * 2, width * 2, STRIP_WIDTH - width * 4, totalHeight - width * 4);
+      ctx.setLineDash([]);
+    }
+  }
   return canvas.toDataURL('image/jpeg', 0.92);
 }
 

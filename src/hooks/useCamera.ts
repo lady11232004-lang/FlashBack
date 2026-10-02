@@ -4,6 +4,7 @@ export function useCamera() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const activeRef = useRef(false);
+  const requestRef = useRef(0);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -11,6 +12,8 @@ export function useCamera() {
 
   const start = useCallback(async (mode?: 'user' | 'environment') => {
     const fm = mode ?? facingMode;
+    const request = ++requestRef.current;
+    setReady(false);
     setError(null);
     activeRef.current = true;
     try {
@@ -28,7 +31,7 @@ export function useCamera() {
         video: { facingMode: fm },
         audio: false,
       });
-      if (!activeRef.current) {
+      if (!activeRef.current || request !== requestRef.current) {
         mediaStream.getTracks().forEach((t) => t.stop());
         return;
       }
@@ -39,6 +42,7 @@ export function useCamera() {
         videoRef.current.srcObject = mediaStream;
       }
     } catch (e: unknown) {
+      if (request !== requestRef.current) return;
       const err = e as Error;
       if (err.name === 'NotAllowedError') {
         setError('Camera permission denied. Please allow camera access and try again.');
@@ -52,15 +56,14 @@ export function useCamera() {
   }, [facingMode]);
 
   const switchCamera = useCallback(() => {
-    setFacingMode((prev) => {
-      const next = prev === 'user' ? 'environment' : 'user';
-      if (activeRef.current) start(next);
-      return next;
-    });
-  }, [start]);
+    const next = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(next);
+    if (activeRef.current) void start(next);
+  }, [facingMode, start]);
 
   const stop = useCallback(() => {
     activeRef.current = false;
+    requestRef.current++;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -134,6 +137,7 @@ export function useCamera() {
   useEffect(
     () => () => {
       activeRef.current = false;
+      requestRef.current++;
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }

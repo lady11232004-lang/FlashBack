@@ -10,20 +10,9 @@ import {
 import { useCamera } from '@/hooks/useCamera';
 import { getFilterCss } from '@/hooks/useFilters';
 import { generatePhotoStrip, generateCoupleStrip, DEFAULT_CUSTOMIZATION, TEMPLATE_LAYOUTS, type StripCustomization } from '@/utils/photoStrip';
-import { supabase } from '@/lib/supabase';
+import { listGallery, saveGallery, updateGallery, deleteGallery, deviceStore, type GalleryInput, type GalleryItem } from '@/lib/gallery';
 
 export type PhotoboothMode = 'SOLO' | 'DOUBLE';
-
-type SavedGalleryItem = {
-  id: string;
-  item_type: string;
-  data_url: string;
-  thumbnail: string;
-  title: string;
-  template: string;
-  mode: string;
-  created_at: string;
-};
 
 type PhotoboothState = {
   mode: PhotoboothMode;
@@ -48,7 +37,7 @@ type PhotoboothState = {
   isCapturing: boolean;
   flash: boolean;
   capturedShots: string[];
-  selectedShots: string[];
+  selectedShots: number[];
   retakeShot: (index: number) => Promise<void>;
   selectShot: (index: number) => void;
   deselectShot: (index: number) => void;
@@ -69,9 +58,15 @@ type PhotoboothState = {
   partnerPhotos: string[];
   setPartnerPhotos: (p: string[]) => void;
   // gallery
-  galleryItems: SavedGalleryItem[];
+  galleryItems: GalleryItem[];
+  galleryError: string | null;
+  galleryLoading: boolean;
+  draftReady: boolean;
+  replaceShots: (photos: string[]) => void;
+  updateGalleryItem: (id: string, patch: { title?: string; favorite?: boolean }) => Promise<void>;
+  deleteGalleryItem: (id: string) => Promise<void>;
   loadGallery: () => Promise<void>;
-  saveToGallery: (item: { item_type: string; data_url: string; thumbnail?: string; title?: string; template?: string }) => Promise<void>;
+  saveToGallery: (item: GalleryInput) => Promise<void>;
   // video
   videoBlobUrl: string | null;
   setVideoBlobUrl: (url: string | null) => void;
@@ -102,14 +97,44 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [flash, setFlash] = useState(false);
   const [capturedShots, setCapturedShots] = useState<string[]>([]);
-  const [selectedShots, setSelectedShots] = useState<string[]>([]);
+  const [selectedShots, setSelectedShots] = useState<number[]>([]);
   const [partnerPhotos, setPartnerPhotos] = useState<string[]>([]);
   const [stripDataUrl, setStripDataUrl] = useState('');
   const [stripLoading, setStripLoading] = useState(false);
   const [customization, setCustomizationState] = useState<StripCustomization>(DEFAULT_CUSTOMIZATION);
-  const [galleryItems, setGalleryItems] = useState<SavedGalleryItem[]>([]);
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const activeRef = useRef(false);
+  const captureLock = useRef(false);
+  const captureEpoch = useRef(0);
+  const generationRef = useRef(0);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    deviceStore<{mode: PhotoboothMode; totalShots: number; countdownDuration: number; filterKey: string; capturedShots: string[]; selectedShots: number[]; partnerPhotos: string[]; customization: StripCustomization; stripDataUrl: string; videoBlobUrl: string | null} | undefined>('draft', 'readonly', store => store.get('current')).then(draft => {
+      if (cancelled) return;
+      if (draft) {
+        setMode(draft.mode); setTotalShots(draft.totalShots); setCountdownDuration(draft.countdownDuration);
+        setFilterKey(draft.filterKey); setCapturedShots(draft.capturedShots); setSelectedShots(draft.selectedShots);
+        setPartnerPhotos(draft.partnerPhotos); setCustomizationState(draft.customization);
+        setStripDataUrl(draft.stripDataUrl); setVideoBlobUrl(draft.videoBlobUrl);
+      }
+    }).catch(error => { if (!cancelled) setGalleryError(error.message); }).finally(() => { if (!cancelled) setDraftReady(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    // Queue all writes in order; refreshing after a completed capture restores the draft.
+    deviceStore('draft', 'readwrite', store => store.put({ mode, totalShots, countdownDuration, filterKey, capturedShots, selectedShots, partnerPhotos, customization, stripDataUrl, videoBlobUrl }, 'current')).catch(error => setGalleryError(error.message));
+  }, [draftReady, mode, totalShots, countdownDuration, filterKey, capturedShots, selectedShots, partnerPhotos, customization, stripDataUrl, videoBlobUrl]);
+
+  const replaceShots = useCallback((photos: string[]) => {
+    setCapturedShots(photos); setSelectedShots([]); setStripDataUrl('');
+  }, []);
 
   const startCamera = useCallback(async () => {
     activeRef.current = true;
@@ -118,10 +143,14 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
 
   const stopCamera = useCallback(() => {
     activeRef.current = false;
+    captureEpoch.current++;
     stop();
   }, [stop]);
 
   const resetSession = useCallback(() => {
+    activeRef.current = false;
+    captureEpoch.current++;
+    generationRef.current++;
     setCapturedShots([]);
     setSelectedShots([]);
     setPartnerPhotos([]);
@@ -145,12 +174,15 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startCapture = useCallback(async () => {
-    if (isCapturing || capturedShots.length >= MAX_SHOTS) return;
+    if (!ready || captureLock.current || capturedShots.length >= MAX_SHOTS) return;
+    captureLock.current = true;
+    const epoch = captureEpoch.current;
     setIsCapturing(true);
 
     for (let step = countdownDuration; step >= 1; step--) {
       setCountdown(step);
       await new Promise((r) => setTimeout(r, 1000));
+      if (!activeRef.current || epoch !== captureEpoch.current) { captureLock.current = false; setIsCapturing(false); setCountdown(0); return; }
     }
     setCountdown(0);
 
@@ -163,13 +195,18 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
       setCapturedShots((prev) => [...prev, photo]);
     }
     setIsCapturing(false);
-  }, [isCapturing, capturedShots.length, captureWithFilter, filterKey, countdownDuration]);
+    captureLock.current = false;
+  }, [ready, capturedShots.length, captureWithFilter, filterKey, countdownDuration]);
 
   const retakeShot = useCallback(async (index: number) => {
+    if (!ready || captureLock.current || index < 0 || index >= capturedShots.length) return;
+    captureLock.current = true;
+    const epoch = captureEpoch.current;
     setIsCapturing(true);
     for (let step = countdownDuration; step >= 1; step--) {
       setCountdown(step);
       await new Promise((r) => setTimeout(r, 1000));
+      if (!activeRef.current || epoch !== captureEpoch.current) { captureLock.current = false; setIsCapturing(false); setCountdown(0); return; }
     }
     setCountdown(0);
     setFlash(true);
@@ -184,7 +221,8 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
       });
     }
     setIsCapturing(false);
-  }, [captureWithFilter, filterKey, countdownDuration]);
+    captureLock.current = false;
+  }, [ready, capturedShots.length, captureWithFilter, filterKey, countdownDuration]);
 
   const toggleShot = useCallback((index: number) => {
     setSelectedShots((prev) => {
@@ -207,10 +245,11 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
   }, [totalShots]);
 
   const generateStrip = useCallback(async (): Promise<string> => {
+    const generation = ++generationRef.current;
     setStripLoading(true);
     try {
       const layoutDef = TEMPLATE_LAYOUTS[customization.template] || TEMPLATE_LAYOUTS.CLASSIC;
-      const maxSlots = layoutDef.slots;
+      const maxSlots = layoutDef.layout === 'single' ? 1 : totalShots;
       let photosToUse: string[];
 
       if (selectedShots.length > 0) {
@@ -231,34 +270,32 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
       } else {
         url = await generatePhotoStrip(photosToUse, customization);
       }
-      setStripDataUrl(url);
+      if (generation === generationRef.current) setStripDataUrl(url);
       return url;
     } finally {
-      setStripLoading(false);
+      if (generation === generationRef.current) setStripLoading(false);
     }
-  }, [capturedShots, selectedShots, partnerPhotos, mode, customization]);
+  }, [capturedShots, selectedShots, partnerPhotos, mode, customization, totalShots]);
 
   const loadGallery = useCallback(async () => {
-    const { data, error: err } = await supabase
-      .from('gallery_items')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (err) return;
-    setGalleryItems((data || []) as SavedGalleryItem[]);
+    setGalleryLoading(true); setGalleryError(null);
+    try { setGalleryItems(await listGallery()); }
+    catch (error) { setGalleryError(error instanceof Error ? error.message : 'Could not load gallery.'); }
+    finally { setGalleryLoading(false); }
   }, []);
 
-  const saveToGallery = useCallback(async (item: { item_type: string; data_url: string; thumbnail?: string; title?: string; template?: string }) => {
-    await supabase.from('gallery_items').insert({
-      item_type: item.item_type,
-      data_url: item.data_url,
-      thumbnail: item.thumbnail || '',
-      title: item.title || '',
-      template: item.template || '',
-      mode,
-    });
+  const saveToGallery = useCallback(async (item: GalleryInput) => {
+    await saveGallery(item, mode);
     await loadGallery();
   }, [mode, loadGallery]);
+
+  const updateGalleryItem = useCallback(async (id: string, patch: { title?: string; favorite?: boolean }) => {
+    await updateGallery(id, patch); await loadGallery();
+  }, [loadGallery]);
+
+  const deleteGalleryItem = useCallback(async (id: string) => {
+    await deleteGallery(id); await loadGallery();
+  }, [loadGallery]);
 
   useEffect(
     () => () => {
@@ -285,13 +322,15 @@ export function PhotoboothProvider({ children }: { children: ReactNode }) {
     generateStrip, setStripDataUrl,
     customization, setCustomization,
     partnerPhotos, setPartnerPhotos,
-    galleryItems, loadGallery, saveToGallery,
+    galleryItems, galleryError, galleryLoading, draftReady, replaceShots, loadGallery, saveToGallery, updateGalleryItem, deleteGalleryItem,
     videoBlobUrl, setVideoBlobUrl,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+// The provider and its consumer hook intentionally share one module.
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePhotobooth() {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error('usePhotobooth must be used within PhotoboothProvider');
