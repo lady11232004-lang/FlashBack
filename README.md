@@ -52,3 +52,18 @@ Browser tests use a synthetic camera stream, exercise the actual application, an
 ## Deployment
 
 No deployment target or CI configuration existed in the original repository. This repair adds `vercel.json` for Vercel deployment, with lint and type checks included in its build command. `npm run build` produces `dist/`, which can be served on any HTTPS static host. Navigation uses hash URLs so it does not require a server rewrite rule. If enabling Supabase, configure the two public environment variables before building and apply the migrations separately. Never commit `.env` files, dependency directories, or build output.
+
+## Provision the long-distance backend
+
+The backend uses the existing Supabase architecture: PostgreSQL for sessions and media, anonymous Auth identities for participant ownership, and Realtime with a polling fallback. It requires a hosted project; the Vercel frontend alone cannot persist shared sessions.
+
+1. Sign in to Supabase and create a FlashBack project. Keep its database password outside this repository.
+2. With the Supabase CLI installed, run `supabase login`, `supabase link --project-ref YOUR_PROJECT_REF`, and `supabase db push` from this directory. Apply **all** migrations, including `20261002010000_server_capture.sql`. Alternatively, execute the migration files in order in the project's SQL editor. Never stop after the original permissive migrations.
+3. Enable Anonymous Sign-Ins in the hosted project's Auth settings. The checked-in `supabase/config.toml` enables it for local CLI development; it does not change hosted settings automatically. See [Supabase anonymous authentication](https://supabase.com/docs/guides/auth/auth-anonymous).
+4. Set the two public variables from `.env.example` in Vercel's Production environment and redeploy. Set the Auth site URL to the final HTTPS deployment URL. Never use a service-role key in the frontend.
+5. Run `node --env-file=.env.local scripts/check-backend.mjs` against a test project first. This creates three anonymous identities, verifies create/join/ownership/third-participant denial/capture/persist/retrieve/complete/delete, and removes its test session. Anonymous identities remain for the project's normal cleanup policy. It needs no administrative key.
+6. Verify two separate browser profiles/devices through the UI: create an invite, join once, enable both cameras, capture all rounds, retrieve the final strip, refresh, and confirm an unrelated third browser cannot see the session. The backend smoke test does not replace this camera/UI check.
+
+Server capture deadlines come from PostgreSQL. Client clocks and connectivity still affect when frames arrive. Anonymous identities persist within a browser; clearing its site data loses access. This is participant authentication without a permanent account or cross-device gallery sync. Private shared images remain in the database until deleted by the host or administrator; configure retention appropriate to your deployment before collecting real sessions at scale.
+
+Local backend testing requires Docker and the Supabase CLI: `supabase start`, then `supabase db reset`. The hosted backend has not been verified until credentials are configured and the backend tests actually pass.

@@ -84,8 +84,10 @@ export function useCoupleSync() {
   }, [role, updateSession]);
   const startCountdown = useCallback(async () => {
     if (role !== 'host' || !session?.host_ready || !session.partner_ready || session.countdown_active) return;
-    await updateSession({ countdown_active: true, status: 'capturing', capture_at: new Date(Date.now() + session.countdown_seconds * 1000).toISOString() });
-  }, [role, session, updateSession]);
+    const { data, error } = await requireBackend().rpc('start_couple_capture', { session_id: session.id });
+    if (error) { setError(error.message); throw error; }
+    if (mountedRef.current) setSession(data as CoupleSession);
+  }, [role, session]);
   const finishCountdown = useCallback(async () => {
     if (!session) return;
     await updateSession({ countdown_active: false, current_shot: session.current_shot + 1, capture_at: null });
