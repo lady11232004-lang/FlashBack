@@ -145,12 +145,12 @@ function Gallery({ navigate }: { navigate: (view: View) => void; notify: (messag
   const pb=usePhotobooth();
   const [samples,setSamples]=useState<Record<string,string>>({});
   useEffect(()=>{let active=true;void Promise.all(TEMPLATE_KEYS.map(async key=>[key,await templateSample(key)] as const)).then(entries=>{if(active)setSamples(Object.fromEntries(entries));});return()=>{active=false;};},[]);
-  return <main className="template-library section-pad"><Eyebrow text="START WITH A LAYOUT"/><h1>CHOOSE YOUR TEMPLATE.</h1><p>Sample illustrations show the layout without using anyone’s photos. Frames and decorations come after capture.</p><div className="maker-tabs"><button aria-pressed={pb.mode==='SOLO'} onClick={()=>pb.setMode('SOLO')}>SOLO MODE</button><button aria-pressed={pb.mode==='DOUBLE'} onClick={()=>pb.setMode('DOUBLE')}>LONG-DISTANCE MODE</button></div><div className="template-library-grid">{TEMPLATE_KEYS.map(key=><button key={key} className="template-card-choice" onClick={()=>{pb.setCustomization({...TEMPLATE_STYLES[key],template:key,frameId:'',layout:TEMPLATE_LAYOUTS[key].layout});navigate(pb.mode==='DOUBLE'?'couple-create':'preview');}}>{samples[key]&&<img src={samples[key]} alt={`${TEMPLATE_LAYOUTS[key].label} layout sample`}/>}<strong>{TEMPLATE_LAYOUTS[key].label}</strong><small>{TEMPLATE_LAYOUTS[key].desc}</small></button>)}</div></main>;
+  return <main className="template-library section-pad"><Eyebrow text="START WITH A LAYOUT"/><h1>CHOOSE YOUR TEMPLATE.</h1><p>Sample illustrations show the layout without using anyone’s photos. Frames and decorations come after capture.</p><div className="maker-tabs"><button aria-pressed={pb.mode==='SOLO'} onClick={()=>pb.setMode('SOLO')}>SOLO MODE</button><button aria-pressed={pb.mode==='DOUBLE'} onClick={()=>pb.setMode('DOUBLE')}>LONG-DISTANCE MODE</button></div><div className="template-library-grid">{TEMPLATE_KEYS.map(key=><button key={key} className="template-card-choice" onClick={()=>{pb.setTotalShots(pb.mode==='DOUBLE'?Math.max(3,TEMPLATE_LAYOUTS[key].slots):TEMPLATE_LAYOUTS[key].slots);pb.setCustomization({...TEMPLATE_STYLES[key],template:key,frameId:'',layout:TEMPLATE_LAYOUTS[key].layout});navigate(pb.mode==='DOUBLE'?'couple-create':'preview');}}>{samples[key]&&<img src={samples[key]} alt={`${TEMPLATE_LAYOUTS[key].label} layout sample`}/>}<strong>{TEMPLATE_LAYOUTS[key].label}</strong><small>{TEMPLATE_LAYOUTS[key].desc}</small></button>)}</div></main>;
 }
 
 function Modes({ navigate }: { navigate: (view: View) => void }) {
   const pb = usePhotobooth();
-  return <main><section className="modes-page section-pad"><Eyebrow text="SELECT YOUR EXPERIENCE" /><h1>HOW WILL<br />YOU FLASH?</h1><Script text="capture the magic" /><div className="quote">"Photography is the story I fail to put into words."</div><div className="mode-choice-grid"><Experience image={images.mode} label="SOLO MODE" title="SINGLE FRAME" text="The classic editorial experience. Studio-grade lighting optimized for a single subject. Perfect for headshots, fashion poses, or intimate self-portraits." onClick={() => { pb.setMode('SOLO'); navigate('gallery'); }} /><Experience image={images.preview} label="TOGETHER MODE" title="LONG-DISTANCE" text="Bridge the distance. Create a session, share the link with your partner, and capture synchronized photos together — same booth, different places." onClick={() => { pb.setMode('DOUBLE'); navigate('couple-create'); }} /></div><div className="tip"><Sparkles size={16} /> PRO TIP <p>Long-distance mode works best with a high-speed connection. Ensure both partners are in well-lit areas and have granted camera permission.</p></div></section></main>;
+  return <main><section className="modes-page section-pad"><Eyebrow text="SELECT YOUR EXPERIENCE" /><h1>HOW WILL<br />YOU FLASH?</h1><Script text="capture the magic" /><div className="quote">"Photography is the story I fail to put into words."</div><div className="mode-choice-grid"><Experience image={images.mode} label="SOLO MODE" title="SINGLE FRAME" text="The classic editorial experience. Studio-grade lighting optimized for a single subject. Perfect for headshots, fashion poses, or intimate self-portraits." onClick={() => { pb.setMode('SOLO'); navigate('gallery'); }} /><Experience image={images.preview} label="TOGETHER MODE" title="LONG-DISTANCE" text="Bridge the distance. Create a session, share the link with your partner, and capture synchronized photos together — same booth, different places." onClick={() => { pb.setMode('DOUBLE'); navigate('gallery'); }} /></div><div className="tip"><Sparkles size={16} /> PRO TIP <p>Long-distance mode works best with a high-speed connection. Ensure both partners are in well-lit areas and have granted camera permission.</p></div></section></main>;
 }
 
 /* ============ FILTER PANEL ============ */
@@ -212,7 +212,7 @@ function Preview({ navigate, notify }: { navigate: (view: View) => void; notify:
       <button className="back-link" onClick={() => navigate('rooms')}>TEMPLATE: {TEMPLATE_LAYOUTS[pb.customization.template]?.label} · CHANGE</button>
       <Script text="how many final photos?" />
       <div className="shot-selector">
-        {SHOT_OPTIONS.map(n => <button key={n} className={pb.totalShots === n ? 'selected' : ''} onClick={() => pb.setTotalShots(n)}>{n}</button>)}
+        {[...new Set([pb.totalShots,...SHOT_OPTIONS])].map(n => <button key={n} className={pb.totalShots === n ? 'selected' : ''} onClick={() => pb.setTotalShots(n)}>{n}</button>)}
       </div>
       <Script text="countdown duration" />
       <div className="shot-selector">
@@ -362,7 +362,7 @@ function CoupleCreate({ navigate, notify, onCreated }: { navigate: (view: View) 
   const pb = usePhotobooth();
   const sync = useCoupleSync();
   const [label, setLabel] = useState('');
-  const [shotCount, setShotCount] = useState(4);
+  const [shotCount, setShotCount] = useState(()=>[3,4,6].includes(pb.totalShots)?pb.totalShots:4);
   const [countdownSec, setCountdownSec] = useState(3);
   const roomKey = 'classic';
   const [creating, setCreating] = useState(false);

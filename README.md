@@ -1,6 +1,6 @@
 # FlashBack
 
-A browser photobooth built with React, TypeScript, Vite, Tailwind CSS, and Lucide icons. Capture up to ten photos, retake frames, select your favorites, customize a photo strip, record a session video, and download memories.
+A browser photobooth built with React, TypeScript, Vite, CSS, and Lucide icons. Capture up to ten photos, retake frames, select your favorites, customize a photo strip, record a session video, and download memories.
 
 ## Run locally
 
@@ -80,3 +80,5 @@ CREATE supports up to six JPG/PNG/WebP uploads, 15 MB each, with reorder/remove 
 ## Verification
 
 Browser tests use synthetic camera frames. The tests cover the current template-camera-editor flow, camera limits/cancellation, actual texture/border/text/sticker pixel changes, uploaded-photo designs, responsive widths, private shared capture/retry/refresh, and WebKit canvas rendering. They do not certify physical cameras or native sharing. The hosted database ownership/lifecycle script remains available; no new schema is needed for the design changes.
+
+The unused Tailwind build plugin was removed after a new glob-pattern dependency advisory. Its browser reset remains vendored in `src/base.css` with the MIT license, preserving the existing appearance without the vulnerable build/watch dependencies.
