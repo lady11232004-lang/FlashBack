@@ -2,7 +2,9 @@ import { DEFAULT_CUSTOMIZATION, generatePhotoStrip, TEMPLATE_LAYOUTS, TEMPLATE_S
 const cache = new Map<string, Promise<string>>();
 /** Original landscape samples contain no private or third-party photos. */
 export function templateSample(template: string) {
-  if(!cache.has(template))cache.set(template,generatePhotoStrip(sampleScenes(),{...DEFAULT_CUSTOMIZATION,...TEMPLATE_STYLES[template],template,layout:TEMPLATE_LAYOUTS[template]?.layout || 'vertical'}));
+  const scenes=sampleScenes(),count=template==='COUPLE'?8:TEMPLATE_LAYOUTS[template]?.slots || 4;
+  const photos=Array.from({length:count},(_,i)=>scenes[i%scenes.length]);
+  if(!cache.has(template))cache.set(template,generatePhotoStrip(photos,{...DEFAULT_CUSTOMIZATION,...TEMPLATE_STYLES[template],template,layout:TEMPLATE_LAYOUTS[template]?.layout || 'vertical'}));
   return cache.get(template)!;
 }
 
