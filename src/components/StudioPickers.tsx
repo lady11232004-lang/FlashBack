@@ -1,4 +1,4 @@
-import { samplePortraits } from '@/utils/templateSamples';
+import { sampleScenes } from '@/utils/templateSamples';
 import { useEffect, useState } from 'react';
 import { FRAME_CATEGORIES, FRAME_PRESETS, ROOMS } from '@/utils/frames';
 import { DEFAULT_CUSTOMIZATION, generatePhotoStrip } from '@/utils/photoStrip';
@@ -12,7 +12,7 @@ export function FramePicker({ value, onChange }: { value: string; onChange: (id:
   const [previews,setPreviews] = useState<Record<string,string>>({});
   useEffect(() => {
     let cancelled=false;
-    const photo=samplePortraits()[0];
+    const photo=sampleScenes()[0];
     void Promise.all(FRAME_PRESETS.filter(frame=>frame.category===category).map(async frame=>[frame.id,await generatePhotoStrip([photo,photo,photo,photo],{...DEFAULT_CUSTOMIZATION,frameId:frame.id,titleText:'',dateText:' ',layout:'vertical'})] as const)).then(entries=>{if(!cancelled)setPreviews(prev=>({...prev,...Object.fromEntries(entries)}));});
     return ()=>{cancelled=true;};
   },[category]);

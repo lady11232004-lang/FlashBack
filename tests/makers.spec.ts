@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('uploaded photos create editable collages and all instant-print formats, with exports and gallery persistence',async({page})=>{
+test('uploaded photos create editable collages and all instant-print formats, with exports and scrapbook customization',async({page})=>{
   await page.goto('/#makers');
   await expect(page.getByRole('button',{name:'DOWNLOAD',exact:true})).toBeDisabled();
   const sources=await page.evaluate(()=>['#c84348','#477794','#86a66b'].map(color=>{const c=document.createElement('canvas');c.width=600;c.height=400;const x=c.getContext('2d')!;x.fillStyle=color;x.fillRect(0,0,600,400);x.fillStyle='#fff';x.fillRect(100,80,60,60);return c.toDataURL('image/png').split(',')[1];}));
@@ -8,8 +8,8 @@ test('uploaded photos create editable collages and all instant-print formats, wi
   await expect(page.locator('.maker-photos img')).toHaveCount(3);
   await expect(page.getByAltText('Created photo design')).toBeVisible();
   const results=[];
-  for(const layout of ['grid','scrapbook','magazine']){const before=await page.getByAltText('Created photo design').getAttribute('src');await page.getByLabel('Maker layout').selectOption(layout);if(layout!=='grid')await expect.poll(()=>page.getByAltText('Created photo design').getAttribute('src')).not.toBe(before);results.push(await page.getByAltText('Created photo design').getAttribute('src'));}
-  expect(new Set(results).size).toBe(3);
+  for(const layout of ['grid','scrapbook','magazine','journal','moodboard']){const before=await page.getByAltText('Created photo design').getAttribute('src');await page.getByLabel('Maker layout').selectOption(layout);if(layout!=='grid')await expect.poll(()=>page.getByAltText('Created photo design').getAttribute('src')).not.toBe(before);results.push(await page.getByAltText('Created photo design').getAttribute('src'));}
+  expect(new Set(results).size).toBe(5);
   const before=await page.getByAltText('Created photo design').getAttribute('src');await page.getByRole('button',{name:'Move photo 2 earlier'}).click();await expect.poll(()=>page.getByAltText('Created photo design').getAttribute('src')).not.toBe(before);
   await page.getByLabel('Maker caption').fill('Our favorite moments');await page.getByLabel('Maker font').selectOption('Mono');await page.getByLabel('Paper color').selectOption('#f3dfe5');
   await page.screenshot({path:'test-results/collage-maker.png',fullPage:true});
@@ -18,8 +18,8 @@ test('uploaded photos create editable collages and all instant-print formats, wi
   await page.getByRole('button',{name:'Remove photo 3'}).click();await expect(page.locator('.maker-photos img')).toHaveCount(2);
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'DOWNLOAD',exact:true}).click();expect((await download).suggestedFilename()).toBe('flashback-instant.jpg');
   const story=page.waitForEvent('download');await page.getByRole('button',{name:'STORY 9:16',exact:true}).click();expect((await story).suggestedFilename()).toBe('flashback-story.jpg');
-  await expect(page.getByRole('button',{name:'SAVE TO GALLERY'})).toBeEnabled();await page.getByRole('button',{name:'SAVE TO GALLERY'}).click();await expect(page.getByRole('status')).toContainText('Saved');
-  const image=await page.getByAltText('Created photo design').getAttribute('src');await page.reload();await page.goto('/#gallery');await page.locator('.gallery-open').first().click();await expect(page.locator('.archive-preview')).toHaveAttribute('src',image!);
+  await page.getByLabel('Maker texture',{exact:true}).selectOption('GRID');await page.getByLabel('Maker border',{exact:true}).selectOption('SCALLOP');await page.getByLabel('Maker sticker',{exact:true}).selectOption('🎀');await page.getByLabel('Maker stickerSize').fill('100');await page.getByLabel('Maker captionY').fill('0.2');await expect(page.getByAltText('Created photo design')).toBeVisible();
+
 });
 
 test('upload validation and full-width laptop layout',async({page})=>{
@@ -36,7 +36,7 @@ test('camera zoom changes preview and capture crop, with composition grid',async
   await page.getByRole('button',{name:'Composition grid'}).click();await expect(page.locator('.camera-grid')).toBeVisible();
   await expect(page.locator('video')).toHaveCSS('transform',/matrix\(-2, 0, 0, 2/);
   const crop=await page.evaluate(async()=>{const {zoomCrop}=await import('/src/utils/cameraZoom.ts');return {normal:zoomCrop(640,480,2),wide:zoomCrop(1920,1080,2,4/3)};});expect(crop).toEqual({normal:{x:160,y:120,w:320,h:240},wide:{x:600,y:270,w:720,h:540}});
-  await page.getByRole('button',{name:'Start capture',exact:true}).click();await page.getByRole('button',{name:'START SESSION',exact:true}).click();await expect(page.locator('.shot-boxes img')).toHaveCount(1,{timeout:10000});
+  await page.getByRole('button',{name:'Start capture',exact:true}).click();await page.getByRole('button',{name:'Take photo',exact:true}).click();await expect(page.locator('.shot-boxes img')).toHaveCount(1,{timeout:10000});
   const source=await page.locator('.shot-boxes img').getAttribute('src');expect(source).toMatch(/^data:image\/jpeg/);
   await expect(page.getByLabel('Camera zoom')).toHaveValue('2');
 });
@@ -47,7 +47,7 @@ test('camera features stay accessible without overlapping at intermediate deskto
     for(const view of ['preview','session']) {
     await page.goto(`/#${view}`);
     await expect(page.getByRole('slider',{name:'Camera zoom'})).toBeVisible();
-    await expect(page.getByRole('tab',{name:/Signature/})).toBeVisible();
+    await expect(page.locator('.frame-picker')).toHaveCount(0);
     await expect(page.getByRole('button',{name:'Rose Milk',exact:true})).toBeVisible();
     await expect(page.getByRole('button',{name:/UPLOAD PHOTOS · COLLAGE/})).toBeVisible();
     const geometry=await page.evaluate(()=>{

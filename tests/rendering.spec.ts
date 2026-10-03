@@ -30,7 +30,7 @@ test('filters alter exported pixels when canvas filters are unavailable', async 
 test('every template renders its layout and retains colored photos without canvas filter support', async ({ page }) => {
   await page.goto('/');
   const layouts = await page.evaluate(async () => {
-    const { generatePhotoStrip, TEMPLATE_LAYOUTS, DEFAULT_CUSTOMIZATION } = await import('/src/utils/photoStrip.ts');
+    const { generatePhotoStrip, TEMPLATE_LAYOUTS, DEFAULT_CUSTOMIZATION, TEMPLATE_STYLES } = await import('/src/utils/photoStrip.ts');
     const photos = ['#f04040', '#40cf40', '#4040f0', '#e0b030'].map(color => {
       const canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 60;
       const ctx = canvas.getContext('2d')!; ctx.fillStyle = color; ctx.fillRect(0, 0, 80, 60);
@@ -41,7 +41,7 @@ test('every template renders its layout and retains colored photos without canva
     const results = [];
     try {
       for (const [template, def] of Object.entries(TEMPLATE_LAYOUTS)) {
-        const src = await generatePhotoStrip(photos, { ...DEFAULT_CUSTOMIZATION, template, layout: def.layout });
+        const src = await generatePhotoStrip(photos, { ...DEFAULT_CUSTOMIZATION, ...TEMPLATE_STYLES[template], template, layout: def.layout });
         const image = new Image(); image.src = src; await image.decode();
         results.push({ template, width: image.width, height: image.height, src });
       }

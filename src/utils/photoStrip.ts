@@ -18,17 +18,19 @@ export const TEMPLATE_FILTERS: Record<string, string> = {
 export const TEMPLATE_LAYOUTS: Record<string, { layout: string; slots: number; label: string; desc: string }> = {
   CLASSIC: { layout: 'vertical', slots: 4, label: 'Classic', desc: '4-frame vertical strip' },
   MINIMAL: { layout: 'vertical', slots: 3, label: 'Minimal', desc: '3-frame clean strip' },
-  FILM: { layout: 'vertical', slots: 4, label: 'Film', desc: '4-frame film look' },
-  '35MM FILM': { layout: 'vertical', slots: 4, label: '35mm Film', desc: 'Warm faded film grain' },
-  'VINTAGE 70S': { layout: 'vertical', slots: 4, label: 'Vintage 70s', desc: 'Retro warm tones' },
+  FILM: { layout: 'vertical', slots: 4, label: 'Film', desc: 'Dark paper with film edges' },
+  '35MM FILM': { layout: 'vertical', slots: 4, label: '35mm Film', desc: '35mm-inspired film border' },
+  'VINTAGE 70S': { layout: 'vertical', slots: 4, label: 'Vintage 70s', desc: 'Warm paper and vintage border' },
   'DATE STAMP': { layout: 'vertical', slots: 4, label: 'Date Stamp', desc: 'Your photos with a date stamp' },
   POLAROID: { layout: 'polaroid', slots: 3, label: 'Polaroid', desc: '3-frame polaroid style' },
   RETRO: { layout: 'vertical', slots: 6, label: 'Retro', desc: '6-frame retro strip' },
   EDITORIAL: { layout: 'single', slots: 1, label: 'Editorial', desc: 'Single hero frame' },
   'CLEAN MODERN': { layout: 'grid2x2', slots: 4, label: 'Clean Modern', desc: '2x2 grid layout' },
   COUPLE: { layout: 'sidebyside', slots: 4, label: 'Cute Couple', desc: 'Side-by-side couple strip' },
-  KODAK: { layout: 'vertical', slots: 4, label: 'Kodak', desc: 'Kodak-inspired warm tones' },
+  KODAK: { layout: 'vertical', slots: 4, label: 'Kodak', desc: 'Golden paper and photo border' },
 };
+
+export const TEMPLATE_STYLES: Record<string,{background:string;border:string;texture:string}> = { CLASSIC:{background:'CREAM',border:'NONE',texture:'NONE'},MINIMAL:{background:'WHITE',border:'THIN',texture:'NONE'},FILM:{background:'BLACK',border:'FILM_PERF',texture:'NONE'},'35MM FILM':{background:'CHARCOAL',border:'FILM_PERF',texture:'GRAIN'},'VINTAGE 70S':{background:'KRAFT',border:'VINTAGE',texture:'PAPER'},'DATE STAMP':{background:'SAND',border:'THIN',texture:'NONE'},POLAROID:{background:'WHITE',border:'NONE',texture:'PAPER'},RETRO:{background:'SOFT_PINK',border:'DOUBLE',texture:'NONE'},EDITORIAL:{background:'WHITE',border:'ELEGANT',texture:'NONE'},'CLEAN MODERN':{background:'PEARL',border:'NONE',texture:'NONE'},COUPLE:{background:'BLUSH',border:'ROUNDED',texture:'NONE'},KODAK:{background:'MUSTARD',border:'THICK',texture:'PAPER'} };
 
 export const TEMPLATE_KEYS = Object.keys(TEMPLATE_LAYOUTS);
 
@@ -82,6 +84,12 @@ export const STRIP_BORDERS: Record<string, string> = {
   ELEGANT: '2px solid #202125',
   FRAMED: '5px solid #5d4037',
   NEON: '2px solid #e91e63',
+  CUSTOM: '4px solid #202125',
+  SCALLOP: '6px solid #c6889b',
+  LACE: '4px dotted #ffffff',
+  POSTAGE: '5px dashed #ad7253',
+  CHECKER: '6px solid #202125',
+  CORNERS: '5px solid #5c7868',
 };
 
 export const STRIP_TEXTURES: Record<string, { label: string; overlay: string; opacity: number }> = {
@@ -92,7 +100,10 @@ export const STRIP_TEXTURES: Record<string, { label: string; overlay: string; op
   VINTAGE: { label: 'Vintage', overlay: 'vintage', opacity: 0.25 },
   DOTS: { label: 'Dots', overlay: 'dots', opacity: 0.1 },
   NOISE: { label: 'Noise', overlay: 'noise', opacity: 0.15 },
-  WASHED: { label: 'Washed', overlay: 'washed', opacity: 0.18 },
+  WASHED: { label: 'Washed', overlay: 'washed', opacity: 0.4 },
+  GRID: { label: 'Journal Grid', overlay:'grid', opacity:.4 },
+  STRIPES: { label: 'Stripes', overlay:'stripes', opacity:.4 },
+  CONFETTI: { label: 'Confetti', overlay:'confetti', opacity:.6 },
 };
 
 export const TEXT_COLORS: Record<string, string> = {
@@ -128,8 +139,14 @@ export type StripSticker = {
 
 export type StripOrientation = 'portrait' | 'landscape';
 
-export const STRIP_FONTS: Record<string,string> = { Sans: 'Arial, sans-serif', Serif: 'Georgia, serif', Mono: 'Courier New, monospace', Script: 'Apple Chancery, cursive', Handwritten: 'Comic Sans MS, cursive' };
+export const STRIP_FONTS: Record<string,string> = { Sans: 'Arial, sans-serif', Serif: 'Georgia, serif', Mono: 'Courier New, monospace', Script: 'Apple Chancery, cursive', Handwritten: 'Comic Sans MS, cursive', Pacifico: 'Pacifico, cursive', Modern: 'DM Sans, Arial, sans-serif', Typewriter: 'DM Mono, monospace', Classic: 'Times New Roman, serif', Book: 'Palatino, Georgia, serif', Elegant: 'Baskerville, Georgia, serif', Rounded: 'Trebuchet MS, sans-serif', Bold: 'Impact, sans-serif', Clean: 'Verdana, sans-serif', Editorial: 'Garamond, Georgia, serif' };
 export type StripCustomization = {
+  textX?: number;
+  textY?: number;
+  textScale?: number;
+  textureStrength?: number;
+  borderColor?: string;
+  borderWidth?: number;
   showText?: boolean;
   showThemeLabels?: boolean;
   fontFamily?: string;
@@ -175,6 +192,7 @@ export const DEFAULT_CUSTOMIZATION: StripCustomization = {
   layout: 'vertical',
   orientation: 'portrait',
   texture: 'NONE',
+  textureStrength: .6,
 };
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -194,73 +212,30 @@ function getLayoutPhotos(photos: string[], maxSlots: number): string[] {
 }
 
 // Draw texture overlays on the strip
-function drawTexture(ctx: CanvasRenderingContext2D, texture: string, w: number, h: number, opacity: number) {
-  if (!texture || texture === 'NONE' || opacity <= 0) return;
+export function drawTexture(ctx: CanvasRenderingContext2D, texture: string, w: number, h: number, opacity: number) {
+ if(texture==='NONE'||!texture||opacity<=0)return;
+ ctx.save();ctx.globalAlpha=Math.min(1,opacity);const tile=document.createElement('canvas');tile.width=96;tile.height=96;const t=tile.getContext('2d')!;
+ t.strokeStyle='#786b58';t.fillStyle='#786b58';t.lineWidth=1;
+ if(['PAPER','GRAIN','NOISE'].includes(texture)) {let seed=83;for(let i=0;i<2200;i++){seed=(seed*16807)%2147483647;const x=seed%96;seed=(seed*16807)%2147483647;const y=seed%96;t.fillStyle=i%2?'#fffaf0':'#544b41';t.globalAlpha=texture==='PAPER'?.35:.7;t.fillRect(x,y,texture==='GRAIN'?2:1,texture==='PAPER'?3:1);}}
+ else if(['LINEN','GRID','STRIPES'].includes(texture)){const gap=texture==='GRID'?24:texture==='LINEN'?4:12;for(let x=0;x<96;x+=gap){t.beginPath();t.moveTo(x,0);t.lineTo(x,96);t.stroke();}if(texture!=='STRIPES')for(let y=0;y<96;y+=gap){t.beginPath();t.moveTo(0,y);t.lineTo(96,y);t.stroke();}}
+ else if(['DOTS','CONFETTI'].includes(texture)){for(let y=6;y<96;y+=16)for(let x=6;x<96;x+=16){t.fillStyle=texture==='CONFETTI'?['#cc708b','#657daa','#c5a34e'][(x+y)%3]:'#786b58';t.beginPath();t.arc(x,y,texture==='DOTS'?1.5:2.5,0,Math.PI*2);t.fill();}}
+ else {const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,texture==='WASHED'?'#dbe9e5':'#b88d5d');g.addColorStop(.5,texture==='WASHED'?'#fffafa':'#fff4d0');g.addColorStop(1,texture==='WASHED'?'#e8ddec':'#ad8162');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);ctx.restore();return;}
+ ctx.fillStyle=ctx.createPattern(tile,'repeat')!;ctx.fillRect(0,0,w,h);ctx.restore();
+}
 
-  ctx.save();
-  ctx.globalAlpha = opacity;
-
-  if (texture === 'PAPER' || texture === 'GRAIN' || texture === 'NOISE') {
-    // Random noise/grain pattern
-    const imgData = ctx.createImageData(w, h);
-    const d = imgData.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const n = Math.random() * 40 - 20;
-      d[i] = n > 0 ? n : 0;
-      d[i + 1] = n > 0 ? n : 0;
-      d[i + 2] = n > 0 ? n : 0;
-      d[i + 3] = Math.abs(n) * 2;
-    }
-    // Use a temp canvas to draw the noise
-    const tmp = document.createElement('canvas');
-    tmp.width = w;
-    tmp.height = h;
-    const tctx = tmp.getContext('2d');
-    if (tctx) {
-      tctx.putImageData(imgData, 0, 0);
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.drawImage(tmp, 0, 0);
-    }
-  } else if (texture === 'LINEN') {
-    // Cross-hatch linen pattern
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < w; x += 4) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-    }
-    for (let y = 0; y < h; y += 4) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-  } else if (texture === 'VINTAGE' || texture === 'WASHED') {
-    // Vintage warm overlay with vignette
-    const grad = ctx.createRadialGradient(w / 2, h / 2, w * 0.2, w / 2, h / 2, w * 0.7);
-    grad.addColorStop(0, 'rgba(180,140,80,0)');
-    grad.addColorStop(1, 'rgba(120,80,40,0.5)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-  } else if (texture === 'DOTS') {
-    // Dot pattern
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    const spacing = 8;
-    for (let y = 0; y < h; y += spacing) {
-      for (let x = 0; x < w; x += spacing) {
-        ctx.beginPath();
-        ctx.arc(x, y, 0.8, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
-
-  ctx.restore();
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = 'source-over';
+export function drawStripBorder(ctx:CanvasRenderingContext2D,style:string,color:string|undefined,width:number|undefined,w:number,h:number){
+ const definition=STRIP_BORDERS[style];if(!definition||style==='NONE')return;
+ const match=definition.match(/(\d+)px \w+ (#[\da-f]+)/i);if(!match)return;
+ const thickness=Math.max(1,Math.min(18,width||Number(match[1]))),ink=color&&/^#[\da-f]{6}$/i.test(color)?color:match[2];ctx.save();ctx.strokeStyle=ink;ctx.fillStyle=ink;ctx.lineWidth=thickness;
+ if(['DASHED','POSTAGE'].includes(style))ctx.setLineDash([thickness*3,thickness*2]);if(['DOTTED','LACE'].includes(style))ctx.setLineDash([1,thickness*2]);
+ if(style==='ROUNDED'){ctx.beginPath();ctx.roundRect(thickness/2,thickness/2,w-thickness,h-thickness,Math.min(26,w/12));ctx.stroke();}
+ else if(['INSET','GROOVE','RIDGE'].includes(style)){ctx.strokeRect(thickness/2,thickness/2,w-thickness,h-thickness);ctx.lineWidth=Math.max(1,thickness/2);ctx.strokeStyle=style==='RIDGE'?'#ffffffaa':'#00000066';ctx.beginPath();ctx.moveTo(0,h);ctx.lineTo(0,0);ctx.lineTo(w,0);ctx.stroke();ctx.strokeStyle=style==='RIDGE'?'#00000066':'#ffffffaa';ctx.beginPath();ctx.moveTo(w,0);ctx.lineTo(w,h);ctx.lineTo(0,h);ctx.stroke();}
+ else if(style==='FILM_PERF'){ctx.fillStyle='#f5efe3';for(let y=12;y<h-12;y+=24){ctx.fillRect(5,y,8,12);ctx.fillRect(w-13,y,8,12);}}
+ else if(style==='SCALLOP'){for(let x=0;x<w;x+=16){ctx.beginPath();ctx.arc(x,0,8,0,Math.PI);ctx.fill();ctx.beginPath();ctx.arc(x,h,8,Math.PI,2*Math.PI);ctx.fill();}for(let y=0;y<h;y+=16){ctx.beginPath();ctx.arc(0,y,8,-Math.PI/2,Math.PI/2);ctx.fill();ctx.beginPath();ctx.arc(w,y,8,Math.PI/2,Math.PI*1.5);ctx.fill();}}
+ else if(style==='CORNERS'){for(const [x,y] of [[0,0],[w,0],[0,h],[w,h]]){ctx.beginPath();ctx.moveTo(x===0?40:w-40,y);ctx.lineTo(x,y);ctx.lineTo(x,y===0?40:h-40);ctx.stroke();}}
+ else if(style==='CHECKER'){for(let x=0;x<w;x+=12){ctx.fillRect(x,0,6,thickness);ctx.fillRect(x,h-thickness,6,thickness);}for(let y=0;y<h;y+=12){ctx.fillRect(0,y,thickness,6);ctx.fillRect(w-thickness,y,thickness,6);}}
+ else {ctx.strokeRect(thickness/2,thickness/2,w-thickness,h-thickness);if(style==='DOUBLE'||style==='ELEGANT')ctx.strokeRect(thickness*2,thickness*2,w-thickness*4,h-thickness*4);}
+ ctx.restore();
 }
 
 export async function generatePhotoStrip(
@@ -290,8 +265,8 @@ export async function generatePhotoStrip(
   const GAP = frame && ['Signature','Portrait'].includes(frame.category) ? 16 : customization.template === 'MINIMAL' ? 18 : 8;
   const FOOTER = customization.showText ? 112 : 28;
   const innerWidth = STRIP_WIDTH - PAD * 2;
-  const bg = frame?.color || STRIP_BACKGROUNDS[customization.background] || '#fafaf7';
-  const filterCss = TEMPLATE_FILTERS[customization.template] || 'none';
+  const bg = frame?.color || (/^#[\da-f]{6}$/i.test(customization.background)?customization.background:STRIP_BACKGROUNDS[customization.background]) || '#fafaf7';
+  const filterCss = 'none';
 
   // Photo aspect ratio changes with orientation
   // Portrait: 3:4 (taller), Landscape: 4:3 (wider)
@@ -355,6 +330,9 @@ export async function generatePhotoStrip(
   ctx.fillRect(0, 0, STRIP_WIDTH, totalHeight);
   drawFrameDecoration(ctx, customization.frameId, STRIP_WIDTH, totalHeight, PAD, Boolean(customization.showText && customization.showThemeLabels), STRIP_FONTS[customization.fontFamily || 'Serif'] || STRIP_FONTS.Serif);
 
+  const texDef = STRIP_TEXTURES[customization.texture];
+  if(texDef)drawTexture(ctx,customization.texture,STRIP_WIDTH,totalHeight,customization.textureStrength ?? Math.max(.35,texDef.opacity));
+
   // Draw photos with filter
   for (const pos of positions) {
     const img = pos.img;
@@ -379,32 +357,13 @@ export async function generatePhotoStrip(
     }
   }
 
-  // Template-specific color overlays
-  if (customization.template === '35MM FILM') {
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = 'rgba(210,180,120,0.2)';
-    ctx.fillRect(0, 0, STRIP_WIDTH, totalHeight);
-    ctx.globalCompositeOperation = 'source-over';
-  } else if (customization.template === 'VINTAGE 70S' || customization.template === 'RETRO') {
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = 'rgba(200,150,80,0.3)';
-    ctx.fillRect(0, 0, STRIP_WIDTH, totalHeight);
-    ctx.globalCompositeOperation = 'source-over';
-  }
-
-  if (customization.template === '35MM FILM') drawTexture(ctx, 'GRAIN', STRIP_WIDTH, totalHeight, 0.35);
-
-  // Draw texture overlay
-  const texDef = STRIP_TEXTURES[customization.texture];
-  if (texDef && texDef.opacity > 0) {
-    drawTexture(ctx, customization.texture, STRIP_WIDTH, totalHeight, texDef.opacity);
-  }
-
   // Text rendering
-  const isDarkBg = ['BLACK', 'NAVY', 'DARK', 'BROWN', 'RED', 'BURGUNDY', 'OLIVE', 'CHARCOAL', 'FOREST', 'SLATE'].includes(customization.background);
+  const hexBg=bg.replace('#','');
+  const customDark=hexBg.length===6&&(parseInt(hexBg.slice(0,2),16)*.299+parseInt(hexBg.slice(2,4),16)*.587+parseInt(hexBg.slice(4,6),16)*.114)<140;
+  const isDarkBg = customDark || ['BLACK', 'NAVY', 'DARK', 'BROWN', 'RED', 'BURGUNDY', 'OLIVE', 'CHARCOAL', 'FOREST', 'SLATE'].includes(customization.background);
   const autoColor = frame?.ink || (isDarkBg ? '#ffffff' : '#202125');
-  const textColor = customization.textColor === 'AUTO' ? autoColor : (TEXT_COLORS[customization.textColor] || autoColor);
-  const accent = ACCENT_COLORS[customization.accentColor] || '';
+  const textColor = customization.textColor === 'AUTO' ? autoColor : (TEXT_COLORS[customization.textColor] || (/^#[\da-f]{6}$/i.test(customization.textColor)?customization.textColor:autoColor));
+  const accent = ACCENT_COLORS[customization.accentColor] || (/^#[\da-f]{6}$/i.test(customization.accentColor)?customization.accentColor:'');
 
   const lastPos = positions[positions.length - 1];
   const footerY = lastPos.y + lastPos.h + (isPolaroid ? POLAROID_BOTTOM : 0) + 16;
@@ -412,6 +371,9 @@ export async function generatePhotoStrip(
   ctx.textAlign = 'center';
   const font = STRIP_FONTS[customization.fontFamily || 'Serif'] || STRIP_FONTS.Serif;
   if (customization.showText) {
+  ctx.save();
+  if(customization.textX!==undefined||customization.textY!==undefined){ctx.translate((customization.textX ?? .5)*STRIP_WIDTH-STRIP_WIDTH/2,(customization.textY ?? .85)*totalHeight-footerY);}
+  const textScale=Math.max(.5,Math.min(3,customization.textScale || 1));ctx.translate(STRIP_WIDTH/2,footerY);ctx.scale(textScale,textScale);ctx.translate(-STRIP_WIDTH/2,-footerY);
   if (customization.titleText) {
     ctx.fillStyle = textColor;
     ctx.font = `bold 13px ${font}`;
@@ -455,6 +417,7 @@ export async function generatePhotoStrip(
 
   if (frame?.mark && customization.showThemeLabels) { ctx.fillStyle = textColor; ctx.font = `bold 10px ${font}`; ctx.fillText(frame.mark, STRIP_WIDTH / 2, totalHeight - 18, innerWidth); }
 
+  ctx.restore();
   }
 
   // Stickers
@@ -462,23 +425,11 @@ export async function generatePhotoStrip(
     ctx.font = '24px serif';
     ctx.textAlign = 'left';
     for (const s of customization.stickers) {
-      ctx.fillText(s.emoji, s.x * STRIP_WIDTH, s.y * totalHeight);
+      ctx.font=`${24*Math.max(.3,Math.min(4,s.size || 1))}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(s.emoji, s.x * STRIP_WIDTH, s.y * totalHeight);
     }
   }
 
-  // Render the chosen border into the exported image, not just the preview.
-  const border = STRIP_BORDERS[customization.border];
-  if (border && border !== 'none') {
-    const match = border.match(/(\d+)px \w+ (#[\da-f]+)/i);
-    if (match) {
-      const width = Number(match[1]); ctx.strokeStyle = match[2]; ctx.lineWidth = width;
-      if (customization.border === 'DASHED') ctx.setLineDash([width * 4, width * 3]);
-      if (customization.border === 'DOTTED') ctx.setLineDash([width, width * 2]);
-      ctx.strokeRect(width / 2, width / 2, STRIP_WIDTH - width, totalHeight - width);
-      if (customization.border === 'DOUBLE') ctx.strokeRect(width * 2, width * 2, STRIP_WIDTH - width * 4, totalHeight - width * 4);
-      ctx.setLineDash([]);
-    }
-  }
+  drawStripBorder(ctx,customization.border,customization.borderColor,customization.borderWidth,STRIP_WIDTH,totalHeight);
   return canvas.toDataURL('image/jpeg', 0.92);
 }
 
